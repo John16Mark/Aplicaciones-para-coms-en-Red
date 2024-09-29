@@ -197,7 +197,9 @@ public class Tablero implements Serializable {
                 }
                 System.out.println("");
             }
-        } else if(tipo == 2) {
+        }
+        // Imprimir tablero datos con colores
+        else if(tipo == 2) {
             System.out.print("    ");
             for(int j=0; j<m; j++) {
                 System.out.printf("%-3d", j);
@@ -247,7 +249,9 @@ public class Tablero implements Serializable {
                 }
                 System.out.println("");
             }
-        } else if(tipo == 3) {
+        }
+        // Imprimir tablero público
+        else if(tipo == 3) {
             System.out.print("    ");
             for(int j=0; j<m; j++) {
                 System.out.printf("%-3d", j);
@@ -260,6 +264,39 @@ public class Tablero implements Serializable {
             for(int i=0; i<n; i++) {
                 System.out.printf("%-3d|", i);
                 for(int j=0; j<m; j++) {
+                    switch(this.tablero_publico[i][j]) {
+                        case '-':
+                            System.out.print("\033[0m");
+                            break;
+                        case '1':
+                            System.out.print("\033[34m");
+                            break;
+                        case '2':
+                            System.out.print("\033[32m");
+                            break;
+                        case '3':
+                            System.out.print("\033[31m");
+                            break;
+                        case '4':
+                            System.out.print("\033[38;2;0;0;132m");
+                            break;
+                        case '5':
+                            System.out.print("\033[38;2;132;0;0m");
+                            break;
+                        case '6':
+                            System.out.print("\033[38;2;0;130;132m");
+                            break; 
+                        case '7':
+                            System.out.print("\033[38;2;132;0;132m");
+                            break; 
+                        case '8':
+                            System.out.print("\033[38;2;117;117;117m");
+                            break;
+                        case 'i':
+                            System.out.print("\033[33m");
+                            break;
+                    }
+                    
                     System.out.printf("%-3c", this.tablero_publico[i][j]);
                 }
                 System.out.println("");
