@@ -242,10 +242,9 @@ public class Tablero implements Serializable {
                                 System.out.print("\033[38;2;117;117;117m");
                                 break;
                         }
-                        System.out.printf("%-3d", this.tablero_datos[i][j]);
+                        System.out.printf("%-3d\033[0m", this.tablero_datos[i][j]);
                     } else
                         System.out.print("   ");
-                    System.out.print("\033[0m");
                 }
                 System.out.println("");
             }
@@ -296,8 +295,7 @@ public class Tablero implements Serializable {
                             System.out.print("\033[33m");
                             break;
                     }
-                    
-                    System.out.printf("%-3c", this.tablero_publico[i][j]);
+                    System.out.printf("%-3c\033[0m", this.tablero_publico[i][j]);
                 }
                 System.out.println("");
             }

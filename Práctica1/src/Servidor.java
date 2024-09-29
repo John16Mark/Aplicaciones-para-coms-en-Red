@@ -27,18 +27,18 @@ public class Servidor {
                 // --------- Menú
                 String menu =   "Juego de Buscaminas\n" +
                                 "Elije la dificultad:\n" +
-                                "1. Principiante\n" +
-                                "2. Intermedio\n" +
-                                "3. Experto\n";
+                                "\033[92m1. Principiante\n" +
+                                "\033[93m2. Intermedio\n" +
+                                "\033[91m3. Experto\033[0m\n";
                 
-                write.writeObject(menu);
+                write.writeUTF(menu);
                 write.flush();
 
-                String op = (String) read.readObject();
-                System.out.println("El cliente selecciono: " + op);
+                int dificultad = read.readInt();
+                System.out.println("El cliente selecciono: " + dificultad);
 
                 // Se crea el tablero con la dificultad
-                Tablero t = new Tablero(Integer.parseInt(op));
+                Tablero t = new Tablero(dificultad);
 
                 // se manda tablero  
                 write.writeObject(t);
@@ -47,13 +47,13 @@ public class Servidor {
                 while(t.enProgreso()) {
                     // se manda menu de opciones
                     String seleccion = "1. Destapar casilla\n2. Colocar bandera\n3. Quitar bandera\n   Opción: ";
-                    write.writeObject(seleccion);
+                    write.writeUTF(seleccion);
                     write.flush();
                 
                     // se recibe opcion y coordenadas
-                    String opcion = (String) read.readObject();
-                    String x = (String) read.readObject();
-                    String y = (String) read.readObject();
+                    int opcion = read.readInt();
+                    int x = read.readInt();
+                    int y = read.readInt();
 
                     clrscr();
 
@@ -62,12 +62,12 @@ public class Servidor {
                     System.out.println("Con coordenadas: " + x + "," + y);
                     
                     //
-                    if(Integer.parseInt(opcion) == 1) {
-                        t.destapar(Integer.parseInt(x), Integer.parseInt(y));
-                    } else if(Integer.parseInt(opcion) == 2) {
-                        t.colocar(Integer.parseInt(x), Integer.parseInt(y));
-                    } else if(Integer.parseInt(opcion) == 3) {
-                        t.quitar(Integer.parseInt(x), Integer.parseInt(y));
+                    if(opcion == 1) {
+                        t.destapar(x, y);
+                    } else if(opcion == 2) {
+                        t.colocar(x, y);
+                    } else if(opcion == 3) {
+                        t.quitar(x, y);
                     }
 
                     t.printTablero(3);

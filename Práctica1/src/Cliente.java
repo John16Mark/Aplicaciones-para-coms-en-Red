@@ -1,8 +1,10 @@
 import java.io.*;
 import java.net.*;
+import java.util.Scanner;
 
 public class Cliente {
     public static void main(String[] args) {
+        Scanner in = new Scanner(System.in);
         try {
             int pto = 8000;
             String dir = "127.0.0.1";
@@ -16,35 +18,32 @@ public class Cliente {
             ObjectInputStream read = new ObjectInputStream(cl.getInputStream());
 
             // recibe el menu del servidor
-            String menu = (String) read.readObject();
+            String menu = read.readUTF();
             System.out.println(menu);
 
-            // se lee la elección del usuario
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            String op = br.readLine();
-
-            // envia la opción al servidor
-            write.writeObject(op);
+            // Se lee la elección del usuario y se envía al servidor
+            int dificultad = in.nextInt();
+            write.writeInt(dificultad);
             write.flush();
 
             // recibe el tablero y lo imprime
             Tablero tableroC = (Tablero) read.readObject();
             tableroC.printTablero(3);
-
+            //BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
             while(true) {
                 // recibe e imprime las opciones
-                String seleccion = (String) read.readObject();
+                String seleccion = read.readUTF();
                 System.out.println(seleccion);
 
                 // lee la opción y coordenadas
-                String opcion = br.readLine();
-                String x = br.readLine();
-                String y = br.readLine();
+                int opcion = in.nextInt();
+                int x = in.nextInt();
+                int y = in.nextInt();
 
                 // envía la opción y coordenadas
-                write.writeObject(opcion);
-                write.writeObject(x);
-                write.writeObject(y);
+                write.writeInt(opcion);
+                write.writeInt(x);
+                write.writeInt(y);
                 write.flush();
 
                 // recibe el tablero y lo imprime
