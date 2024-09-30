@@ -3,6 +3,9 @@ import java.net.*;
 import java.util.Scanner;
 
 public class Cliente {
+    static ObjectOutputStream write;
+    static ObjectInputStream read;
+    
     public static void main(String[] args) {
         Scanner in = new Scanner(System.in);
         try {
@@ -29,15 +32,16 @@ public class Cliente {
             // recibe el tablero y lo imprime
             Tablero tableroC = (Tablero) read.readObject();
             tableroC.printTablero(3);
-            //BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            while(true) {
-                // recibe e imprime las opciones
-                String seleccion = read.readUTF();
-                System.out.println(seleccion);
+
+            while(tableroC.enProgreso()) {
+                String seleccion = "1. Destapar casilla\n2. Colocar bandera\n3. Quitar bandera\n   Opción: ";
+                System.out.print(seleccion);
 
                 // lee la opción y coordenadas
                 int opcion = in.nextInt();
+                System.out.print("fila: ");
                 int x = in.nextInt();
+                System.out.print("colu: ");
                 int y = in.nextInt();
 
                 // envía la opción y coordenadas
@@ -51,18 +55,18 @@ public class Cliente {
                 t.printTablero(3);
 
                 if(t.gano()) {
-                    String win = (String) read.readObject();
+                    String win = read.readUTF();
                     System.out.println(win);
                     break;
                 } else if(t.perdio()) {
-                    String lose = (String) read.readObject();
+                    String lose = read.readUTF();
                     System.out.println(lose);
                     break;
                 }
             }
 
             cl.close();
-
+            in.close();
         } catch(Exception e) {
             e.printStackTrace();
         }
@@ -70,4 +74,5 @@ public class Cliente {
         // Tablero t = new Tablero(1);
         // t.printTablero(2);
     }
+
 }

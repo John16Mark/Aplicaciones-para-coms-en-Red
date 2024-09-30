@@ -2,7 +2,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Scanner;
 
 public class Servidor {
     public static void main(String[] args) {
@@ -45,12 +44,6 @@ public class Servidor {
                 write.flush();
 
                 while(t.enProgreso()) {
-                    // se manda menu de opciones
-                    String seleccion = "1. Destapar casilla\n2. Colocar bandera\n3. Quitar bandera\n   Opción: ";
-                    write.writeUTF(seleccion);
-                    write.flush();
-                
-                    // se recibe opcion y coordenadas
                     int opcion = read.readInt();
                     int x = read.readInt();
                     int y = read.readInt();
@@ -75,52 +68,21 @@ public class Servidor {
                     write.reset();
                     write.writeObject(t);
                     write.flush();
-
-                    if(t.gano()) {
-                        clrscr();
-                        System.out.println("EL CLIENTE GANO EL JUEGO");
-                        String win = "\033[92mGANO EL JUEGO\033[0m";
-                        write.writeObject(win);
-                        write.flush();
-                        break;
-                    } else if(t.perdio()) {
-                        clrscr();
-                        System.out.println("EL CLIENTE PERDIO EL JUEGO");
-                        String lose = "\033[91mPERDIO EL JUEGO\033[0m";
-                        write.writeObject(lose);
-                        write.flush();
-                        break;
-                    }
                 }
 
-                
-                // Scanner in = new Scanner(System.in); // Leer de la consola
-                // System.out.println("");
-                // t.printTablero(3);
-                // ButtonGridFrame bgf = new ButtonGridFrame(16, 30);
-                // while(t.enProgreso()) {
-                //     System.out.println("1. Destapar casilla\n2. Colocar bandera\n3. Quitar bandera\n   Opción: ");
-                //     int opcion = in.nextInt();
-                //     int x = in.nextInt();
-                //     int y = in.nextInt();
-                //     clrscr();
-                //     t.printTablero(2);
-                //     if(opcion == 1) {
-                //         t.destapar(x, y);
-                //     } else if(opcion == 2) {
-                //         t.colocar(x, y);
-                //     } else if(opcion == 3) {
-                //         t.quitar(x, y);
-                //     }
-                //     t.printTablero(3);
-                //     if(t.gano()) {
-                //         System.out.println("\033[92mGANO EL JUEGO\033[0m");
-                //         break;
-                //     } else if(t.perdio()) {
-                //         System.out.println("\033[91mPERDIO EL JUEGO\033[0m");
-                //         break;
-                //     } 
-                // }
+                if(t.gano()) {
+                    clrscr();
+                    System.out.println("EL CLIENTE GANO EL JUEGO");
+                    String win = "\033[92mGANO EL JUEGO\033[0m";
+                    write.writeUTF(win);
+                    write.flush();
+                } else if(t.perdio()) {
+                    clrscr();
+                    System.out.println("EL CLIENTE PERDIO EL JUEGO");
+                    String lose = "\033[91mPERDIO EL JUEGO\033[0m";
+                    write.writeUTF(lose);
+                    write.flush();
+                }
 
                 cl.close();
             }
@@ -135,7 +97,6 @@ public class Servidor {
             if (System.getProperty("os.name").contains("Windows")) {
                 new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
             } else {
-                // Para sistemas Unix (Linux, macOS), puedes usar "clear"
                 new ProcessBuilder("clear").inheritIO().start().waitFor();
             }
         } catch (Exception e) {

@@ -6,18 +6,18 @@ public class Tablero implements Serializable {
     public int n;
     public int m;
     public int n_casillas;
-    public int n_descubiertas = 0;
     public int n_minas;
-    private int tablero_datos[][];
+    transient private int tablero_datos[][];
     public char tablero_publico[][];
-    private int minas_encontradas = 0;
+    public int n_descubiertas = 0;
+    transient private int minas_encontradas = 0;
     public int banderas_colocadas = 0;
     public enum Estado {
         EN_PROGRESO,
         GANO,
         PERDIO;
     }
-    public Estado estado = Estado.EN_PROGRESO;
+    private Estado estado = Estado.EN_PROGRESO;
     //private ArrayList<int[2]> pos_minas;
 
     public Tablero(int d) {
@@ -106,6 +106,14 @@ public class Tablero implements Serializable {
             return false;
         if(this.tablero_datos[x][y] == -1) {
             estado = Estado.PERDIO;
+            for(int i=0; i<this.n; i++) {
+                for(int j=0; j<this.m; j++) {
+                    if(tablero_datos[i][j] == -1 && tablero_publico[i][j] == 'i')
+                        this.tablero_publico[i][j] = 'X';
+                    else if(tablero_datos[i][j] == -1)
+                        this.tablero_publico[i][j] = 'O';
+                }
+            }
             return true;
         }
         revelar(x, y);
@@ -124,6 +132,8 @@ public class Tablero implements Serializable {
         else if(casilla != 0) {
             this.tablero_publico[x][y] = (char)('0' + casilla);
             this.n_descubiertas++;
+            if(this.banderas_colocadas == n_minas && this.minas_encontradas == n_minas && this.n_descubiertas == this.n_casillas)
+                estado = Estado.GANO;
         // Si la casilla no es adyacente a bomba, revelar y todas las de alrededor
         } else {
             this.tablero_publico[x][y] = ' ';
@@ -136,6 +146,8 @@ public class Tablero implements Serializable {
             revelar(x+1, y-1);
             revelar(x, y-1);
             revelar(x-1, y-1);
+            if(this.banderas_colocadas == n_minas && this.minas_encontradas == n_minas && this.n_descubiertas == this.n_casillas)
+                estado = Estado.GANO;
         }
     }
 
