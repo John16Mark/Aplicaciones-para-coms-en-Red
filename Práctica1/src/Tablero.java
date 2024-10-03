@@ -38,7 +38,7 @@ public class Tablero implements Serializable {
         }
         tablero_datos = new int[this.n][this.m];
         tablero_publico = new char[this.n][this.m];
-        n_casillas = this.n*this.m;
+        n_casillas = (this.n*this.m) - n_minas;
         setMinas();
         setNumeros();
         setTableroPublico();
@@ -132,7 +132,7 @@ public class Tablero implements Serializable {
         else if(casilla != 0) {
             this.tablero_publico[x][y] = (char)('0' + casilla);
             this.n_descubiertas++;
-            if(this.banderas_colocadas == n_minas && this.minas_encontradas == n_minas && this.n_descubiertas == this.n_casillas)
+            if((this.banderas_colocadas == n_minas && this.minas_encontradas == n_minas) || this.n_descubiertas == this.n_casillas)
                 estado = Estado.GANO;
         // Si la casilla no es adyacente a bomba, revelar y todas las de alrededor
         } else {
@@ -146,7 +146,7 @@ public class Tablero implements Serializable {
             revelar(x+1, y-1);
             revelar(x, y-1);
             revelar(x-1, y-1);
-            if(this.banderas_colocadas == n_minas && this.minas_encontradas == n_minas && this.n_descubiertas == this.n_casillas)
+            if((this.banderas_colocadas == n_minas && this.minas_encontradas == n_minas) || this.n_descubiertas == this.n_casillas)
                 estado = Estado.GANO;
         }
     }
@@ -158,14 +158,15 @@ public class Tablero implements Serializable {
         // Si no es una casilla desconocida, ignorar
         if(this.tablero_publico[x][y] != '-')
             return false;
+        if(banderas_colocadas >= 10)
+            return false;
         
         this.banderas_colocadas++;
-        this.n_descubiertas++;
         this.tablero_publico[x][y] = 'i';
         // Si la coloqué correctamente, aumentar el contador
         if(this.tablero_datos[x][y] == -1) {
             this.minas_encontradas++;
-            if(this.banderas_colocadas == n_minas && this.minas_encontradas == n_minas && this.n_descubiertas == this.n_casillas)
+            if((this.banderas_colocadas == n_minas && this.minas_encontradas == n_minas) || this.n_descubiertas == this.n_casillas)
                 estado = Estado.GANO;
         }
         return true;
@@ -180,13 +181,12 @@ public class Tablero implements Serializable {
             return false;
         
         this.banderas_colocadas--;
-        this.n_descubiertas--;
         this.tablero_publico[x][y] = '-';
         // Si quité una que tenía mina, disminuir el contador
         if(this.tablero_datos[x][y] == -1) {
             this.minas_encontradas--;
         }
-        if(this.banderas_colocadas == n_minas && this.minas_encontradas == n_minas && this.n_descubiertas == this.n_casillas)
+        if((this.banderas_colocadas == n_minas && this.minas_encontradas == n_minas) || this.n_descubiertas == this.n_casillas)
             estado = Estado.GANO;
         return true;
     }

@@ -1,9 +1,17 @@
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.time.Duration;
+import java.time.Instant;
 
 public class Servidor {
+
+    private static Instant inicio;
+    private static Instant fin;
     public static void main(String[] args) {
 
         try {
@@ -43,6 +51,7 @@ public class Servidor {
                 write.writeObject(t);
                 write.flush();
 
+                inicio = Instant.now();
                 while(t.enProgreso()) {
                     int opcion = read.readInt();
                     int x = read.readInt();
@@ -70,20 +79,28 @@ public class Servidor {
                     write.flush();
                 }
 
+                fin = Instant.now();
+                Duration duration = Duration.between(inicio, fin);
+                long sec = duration.toSeconds();
+                System.out.println("Tiempo total de juego: " + sec + " segundos");
+                write.writeLong(sec);
+                write.flush();
+
                 if(t.gano()) {
-                    clrscr();
                     System.out.println("EL CLIENTE GANO EL JUEGO");
                     String win = "\033[92mGANO EL JUEGO\033[0m";
                     write.writeUTF(win);
                     write.flush();
+
+                    String nombre = read.readUTF();
+                    guardarDatos(nombre, sec);
                 } else if(t.perdio()) {
-                    clrscr();
                     System.out.println("EL CLIENTE PERDIO EL JUEGO");
                     String lose = "\033[91mPERDIO EL JUEGO\033[0m";
                     write.writeUTF(lose);
                     write.flush();
                 }
-
+                
                 cl.close();
             }
         }catch(Exception e) {
@@ -101,6 +118,14 @@ public class Servidor {
             }
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private static void guardarDatos(String nombre, long sec) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("resultados.txt", true))) {
+            writer.write("Usuario: " + nombre + "\nTiempo: " + sec + " segundos\n");
+        } catch (IOException e) {
+            System.out.println("Error al guardar el resultado: " + e.getMessage());
         }
     }
 }

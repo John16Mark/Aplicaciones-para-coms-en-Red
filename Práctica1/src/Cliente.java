@@ -71,8 +71,6 @@ public class Cliente {
             e.printStackTrace();
         }
 
-        // Tablero t = new Tablero(1);
-        // t.printTablero(2);
     }
 
 }

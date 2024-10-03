@@ -1,3 +1,3 @@
 @echo off
 cls
-java -cp bin Cliente
+java -cp bin ClienteUI

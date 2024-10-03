@@ -2,6 +2,8 @@ import java.io.*;
 import java.net.*;
 import java.util.Scanner;
 
+import javax.swing.JOptionPane;
+
 public class ClienteUI {
     static ObjectOutputStream write;
     static ObjectInputStream read;
@@ -34,25 +36,38 @@ public class ClienteUI {
 
             // recibe el tablero y lo imprime
             tableroC = (Tablero) read.readObject();
-            tableroC.printTablero(3);
+            //tableroC.printTablero(3);
 
             ventana = new Ventana(tableroC.n, tableroC.m);
             while(tableroC.enProgreso() && game) {
                 
             }
-            System.out.println("salio del bucle");
+
+            long sec = read.readLong();
+            System.out.println("Tiempo total de juego: " + sec + " segundos");
+
             if(tableroC.gano()) {
                 ventana.setTitulo("GANÓ EL JUEGO OwO");
                 String win = read.readUTF();
                 System.out.println(win);
+
+                String nombre = JOptionPane.showInputDialog(null, "Tiempo total de juego: "+sec+" segundos.\nIngrese su nombre");
+                if(nombre == null)
+                    nombre = "";
+                System.out.println("Nombre: "+nombre);
+
+                write.writeUTF(nombre);
+                write.flush();
+                
             } else if(tableroC.perdio()) {
                 ventana.setTitulo("PERDIÓ EL JUEGO :(");
                 String lose = read.readUTF();
                 System.out.println(lose);
+                JOptionPane.showMessageDialog(null, "Tiempo total de juego: "+sec+" segundos.","Perdió el juego", JOptionPane.INFORMATION_MESSAGE);
             }
-
             cl.close();
             in.close();
+            ventana.dispose();
         } catch(Exception e) {
             e.printStackTrace();
         }
@@ -77,16 +92,11 @@ public class ClienteUI {
                 e.printStackTrace();
             }
 
-            tableroC.printTablero(3);
+            //tableroC.printTablero(3);
             ventana.actualizar(tableroC.tablero_publico, tableroC.n, tableroC.m);
-            System.out.println("?");
             if(!tableroC.enProgreso()) {
-                System.out.println("Acaba");
                 ventana.fin();
                 game = false;
-                System.out.println(game);
-            } else {
-                System.out.println("Continua");
             }
             
         } catch (IOException e) {
