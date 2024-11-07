@@ -33,20 +33,19 @@ public class Cliente {
             DataOutputStream outStream = new DataOutputStream(byteOut);
             DatagramSocket socket = new DatagramSocket();
             InetAddress direccion = InetAddress.getByName(dir_host);
-
+/*
             // Handshake
             outStream.writeInt(TOTAL_PAQUETES); // Total de paquetes
             byte[] temp = ruta.getBytes();
             outStream.writeInt(temp.length);    // Tamaño de la ruta
             outStream.write(temp);              // Ruta
             outStream.flush();
-
             // Enviar paquete
             System.out.println("enviando SYN");
             byte[] bufferOut = byteOut.toByteArray();
             DatagramPacket packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
             socket.send(packet);
-            byteOut.reset();
+            byteOut.reset();*/
 
             int currentPacket = 0;
             while(currentPacket < MAX_PAQUETES) {
