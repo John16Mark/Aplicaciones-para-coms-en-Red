@@ -28,19 +28,30 @@ public class Servidor {
             ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             DataOutputStream outStream = new DataOutputStream(byteOut);
 
+            // Información del archivo
+            int totalPackets = -1;
+            String nombreArchivo = "";
+
             while(true) {
                 // Recibir paquete
                 byte[] buffer = new byte[TAM_BUFFER];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
+                DataInputStream inStream = new DataInputStream(new ByteArrayInputStream(packet.getData()));
+
+                if(totalPackets == -1) {
+                    totalPackets = inStream.readInt();
+                    int tamPath = inStream.readInt();
+                    byte[] bufferNombre = new byte[tamPath];
+                    nombreArchivo = new String(bufferNombre);
+                }
 
                 // Flujo de entrada
-                DataInputStream inStream = new DataInputStream(new ByteArrayInputStream(packet.getData()));
                 int n = inStream.readInt();         // Número de paquete
                 int tam = inStream.readInt();       // Tamaño del paquete
-                byte[] b = new byte[tam];           // datos en bytes
-                int x = inStream.read(b);
-                String cadena = new String(b);      // Cadena de los bytes
+                byte[] bufferIn = new byte[tam];           // datos en bytes
+                int x = inStream.read(bufferIn);
+                String cadena = new String(bufferIn);      // Cadena de los bytes
                 
                 if(expectedPacket == n) {
                     outStream.writeInt(n);
@@ -57,7 +68,7 @@ public class Servidor {
                 inStream.close();
 
                 Path path = Paths.get(dir_server+nombre_archivo);
-                Files.write(path, b);
+                Files.write(path, bufferIn);
             }
         }
         catch(Exception e) {
