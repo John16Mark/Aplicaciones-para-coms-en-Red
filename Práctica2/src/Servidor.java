@@ -40,10 +40,25 @@ public class Servidor {
                 DataInputStream inStream = new DataInputStream(new ByteArrayInputStream(packet.getData()));
 
                 if(totalPackets == -1) {
-                    totalPackets = inStream.readInt();
-                    int tamPath = inStream.readInt();
-                    byte[] bufferNombre = new byte[tamPath];
-                    nombreArchivo = new String(bufferNombre);
+                    // Recibir SYN
+                    int SYNTAM = inStream.readInt();
+                    byte[] bufferSYN = new byte[SYNTAM];
+                    int SYNx = inStream.read(bufferSYN);
+                    String SYN = new String(bufferSYN);
+                    System.out.println("\033[93mRecibiendo "+SYN+"\033[0m");
+                    // Enviar SYN
+                    SYN += " - ACK";
+                    byte[] SYNBytes = SYN.getBytes();
+                    outStream.writeInt(SYNBytes.length);    // Tamaño cadena SYN
+                    outStream.write(SYNBytes);              // SYN
+                    outStream.flush();
+                    System.out.println("\033[93mEnviando SYN\033[0m");
+                    bufferSYN = byteOut.toByteArray();
+                    DatagramPacket packetSYN = new DatagramPacket(bufferSYN, bufferSYN.length, packet.getAddress(), packet.getPort());
+                    socket.send(packetSYN);
+                    byteOut.reset();
+                    
+                    totalPackets = 0;
                 }
 
                 // Flujo de entrada
