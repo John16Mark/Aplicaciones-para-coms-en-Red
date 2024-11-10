@@ -3,15 +3,20 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
+
 import java.net.DatagramSocket;
+import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.net.DatagramPacket;
+
 import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.filechooser.FileSystemView;
+
 import java.util.Arrays;
 
 public class Cliente {
@@ -28,29 +33,7 @@ public class Cliente {
     static String rutaArchivo = "";
 
     public static void main(String[] args){
-        subirArchivo();
-    }
-
-    static void subirArchivo() {
-        JFileChooser jfc = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
-
-		int returnValue = jfc.showOpenDialog(null);
-		if (returnValue == JFileChooser.APPROVE_OPTION) {
-			File selectedFile = jfc.getSelectedFile();
-
-			rutaArchivo = selectedFile.getAbsolutePath();
-            nombreArchivo = selectedFile.getName();
-		}
-
         try{
-            Path path = Paths.get(rutaArchivo);
-            byte[] file = Files.readAllBytes(path);
-            byte[] fileNameBytes = nombreArchivo.getBytes();
-
-            int tam = TAM_PAQUETE;
-            int MAX_PAQUETES = (int) file.length/TAM_PAQUETE;
-            int TOTAL_PAQUETES = (int) file.length%TAM_PAQUETE == 0 ? MAX_PAQUETES : MAX_PAQUETES+1;
-
             // Clases para enviar información
             ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             DataOutputStream outStream = new DataOutputStream(byteOut);
@@ -105,21 +88,60 @@ public class Cliente {
             socket.send(packet);
             byteOut.reset();
 
+            subirArchivo(socket, direccion);
+
+            outStream.close();
+            socket.close();
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+        
+    }
+
+    static void subirArchivo(DatagramSocket socket, InetAddress direccion) {
+
+        try{
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+
+            // Clases para recibir inormación
+            ByteArrayInputStream byteIn;
+            DataInputStream inStream;
+
             // ------------------------------------------------------------------------
             //                                   DATOS
             // ------------------------------------------------------------------------
-            
-            //int currentPacket = 0;
+
+            byteOut = new ByteArrayOutputStream();
+            outStream = new DataOutputStream(byteOut);
+            DatagramPacket packet;
+
+            JFileChooser jfc = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
+            int returnValue = jfc.showOpenDialog(null);
+            if (returnValue == JFileChooser.APPROVE_OPTION) {
+                File selectedFile = jfc.getSelectedFile();
+                rutaArchivo = selectedFile.getAbsolutePath();
+                nombreArchivo = selectedFile.getName();
+            }
+
+            Path path = Paths.get(rutaArchivo);
+            byte[] file = Files.readAllBytes(path);
+            byte[] fileNameBytes = nombreArchivo.getBytes();
+
+            int tam = TAM_PAQUETE;
+            int PAQUETES_COMPLETOS = (int) file.length/TAM_PAQUETE;
+            int TOTAL_PAQUETES = (int) file.length%TAM_PAQUETE == 0 ? PAQUETES_COMPLETOS : PAQUETES_COMPLETOS+1;
             int n_sobrantes = (int) file.length % TAM_PAQUETE;
 
-            int start = 0; // Índice de la ventana de paquetes enviados pero no confirmados
-            int apuntador = 0; // Índice del siguiente paquete a enviar
+            int start = 0; // Apuntador al inicio de la ventana
+            int apuntador = 0; // Apuntador al paquete que se va a mandar
             while (start < TOTAL_PAQUETES) {
                 // Enviar paquetes en la ventana
                 while (apuntador < start + TAM_VENTANA && apuntador < TOTAL_PAQUETES) {
                     byte[] btmp;
                     // Si es el paquete final (y es más pequeño que el tamaño de paquete)
-                    if(apuntador == MAX_PAQUETES)
+                    if(apuntador == PAQUETES_COMPLETOS)
                         btmp = Arrays.copyOfRange(file, apuntador*tam, apuntador*tam + n_sobrantes);
                     else
                         btmp = Arrays.copyOfRange(file, apuntador*tam, apuntador*tam + tam);
@@ -144,7 +166,7 @@ public class Cliente {
                 try {
                     // Recibir el ACK
                     socket.setSoTimeout(TIEMPO_ESPERA);
-                    buffer = new byte[TAM_BUFFER];
+                    byte[] buffer = new byte[TAM_BUFFER];
                     packet = new DatagramPacket(buffer, buffer.length);
                     socket.receive(packet);
                     byteIn = new ByteArrayInputStream(packet.getData());
@@ -167,4 +189,14 @@ public class Cliente {
         }
     }
     
+    static void borrarArchivo() {
+
+    }
+
+    class Window extends JFrame {
+        public Window() {
+
+        }
+    }
+
 }
