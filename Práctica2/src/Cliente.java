@@ -2,6 +2,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
@@ -9,6 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.net.DatagramPacket;
+import javax.swing.JFileChooser;
+import javax.swing.filechooser.FileSystemView;
 import java.util.Arrays;
 
 public class Cliente {
@@ -20,16 +23,29 @@ public class Cliente {
     final static int PORT = 5555;
     final static int TIEMPO_ESPERA = 2000;
 
-    final static String fileName = "./Marvel VS Capcom.exe";
+    //final static String fileName = "./archivo.txt";
+    static String nombreArchivo = "";
+    static String rutaArchivo = "";
 
     public static void main(String[] args){
+        subirArchivo();
+    }
 
-        String filePath = "./";
+    static void subirArchivo() {
+        JFileChooser jfc = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
+
+		int returnValue = jfc.showOpenDialog(null);
+		if (returnValue == JFileChooser.APPROVE_OPTION) {
+			File selectedFile = jfc.getSelectedFile();
+
+			rutaArchivo = selectedFile.getAbsolutePath();
+            nombreArchivo = selectedFile.getName();
+		}
 
         try{
-            Path path = Paths.get(fileName);
+            Path path = Paths.get(rutaArchivo);
             byte[] file = Files.readAllBytes(path);
-            byte[] fileNameBytes = fileName.getBytes();
+            byte[] fileNameBytes = nombreArchivo.getBytes();
 
             int tam = TAM_PAQUETE;
             int MAX_PAQUETES = (int) file.length/TAM_PAQUETE;
