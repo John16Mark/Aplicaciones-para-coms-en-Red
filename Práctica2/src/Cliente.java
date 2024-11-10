@@ -13,6 +13,7 @@ import java.util.Arrays;
 public class Cliente {
 
     final public static int TAM_VENTANA = 10;
+    final public static int TAM_PAQUETE = 20;
     final public static int TAM_BUFFER = 65535;
     final static String dir_host = "127.0.0.1";
     final static int PORT = 5555;
@@ -25,9 +26,9 @@ public class Cliente {
             Path path = Paths.get(ruta);
             byte[] bytes = Files.readAllBytes(path);
 
-            int tam = TAM_VENTANA;
-            int MAX_PAQUETES = (int) bytes.length/TAM_VENTANA;
-            int TOTAL_PAQUETES = (int) bytes.length%TAM_VENTANA == 0 ? MAX_PAQUETES : MAX_PAQUETES+1;
+            int tam = TAM_PAQUETE;
+            int MAX_PAQUETES = (int) bytes.length/TAM_PAQUETE;
+            int TOTAL_PAQUETES = (int) bytes.length%TAM_PAQUETE == 0 ? MAX_PAQUETES : MAX_PAQUETES+1;
 
             // Clases para enviar información
             ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
@@ -88,9 +89,15 @@ public class Cliente {
             // ------------------------------------------------------------------------
             
             int currentPacket = 0;
-            while(currentPacket < MAX_PAQUETES) {
+            int n_sobrantes = (int) bytes.length % TAM_PAQUETE;
+            while(currentPacket < TOTAL_PAQUETES) {
                 outStream.writeInt(currentPacket);  // Número de paquete
-                byte[] btmp = Arrays.copyOfRange(bytes, currentPacket*tam, currentPacket*tam + tam);
+                byte[] btmp;
+                // Si el paquete final es menor a la 
+                if(currentPacket == MAX_PAQUETES)
+                    btmp = Arrays.copyOfRange(bytes, currentPacket*tam, currentPacket*tam + n_sobrantes);
+                else
+                    btmp = Arrays.copyOfRange(bytes, currentPacket*tam, currentPacket*tam + tam);
                 outStream.writeInt(btmp.length);    // Tamaño de paquete
                 outStream.write(btmp);              // Datos
                 outStream.flush();
@@ -112,35 +119,6 @@ public class Cliente {
                 System.out.println("\033[96mACK: \033[0m"+n);
                 if(n == currentPacket)
                     currentPacket++;
-            }
-
-            if((int) bytes.length % TAM_VENTANA != 0) {
-                while(currentPacket == MAX_PAQUETES) {
-                    int n_sobrantes = (int) bytes.length % TAM_VENTANA;
-                    outStream.writeInt(MAX_PAQUETES);   // Número de paquete
-                    byte[] btmp = Arrays.copyOfRange(bytes, (MAX_PAQUETES)*tam, (MAX_PAQUETES)*tam + n_sobrantes);
-                    outStream.writeInt(btmp.length);    // Tamaño de paquete
-                    outStream.write(btmp);              // Datos
-                    outStream.flush();
-
-                    // Enviar paquete
-                    System.out.println("Enviando el paquete "+(MAX_PAQUETES)+" con el mensaje: "+new String(btmp));
-                    byte[] bufferOut = byteOut.toByteArray();
-                    packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
-                    socket.send(packet);
-                    byteOut.reset();
-
-                    // Recibir el ACK
-                    buffer = new byte[TAM_BUFFER];
-                    DatagramPacket ACK = new DatagramPacket(buffer, buffer.length);
-                    socket.receive(ACK);
-                    byteIn = new ByteArrayInputStream(packet.getData());
-                    inStream = new DataInputStream(byteIn);
-                    int n = inStream.readInt();
-                    System.out.println("\033[96mACK: \033[0m"+n);
-                    if(n == currentPacket)
-                        currentPacket++;
-                }
             }
 
             outStream.close();
