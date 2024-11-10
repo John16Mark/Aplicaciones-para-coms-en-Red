@@ -28,37 +28,60 @@ public class Servidor {
             ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             DataOutputStream outStream = new DataOutputStream(byteOut);
 
+            // Clases para recibir inormación
+            ByteArrayInputStream byteIn;
+            DataInputStream inStream;
+
             // Información del archivo
             int totalPackets = -1;
-            String nombreArchivo = "";
+            //String nombreArchivo = "";
 
             while(true) {
                 // Recibir paquete
                 byte[] buffer = new byte[TAM_BUFFER];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
-                DataInputStream inStream = new DataInputStream(new ByteArrayInputStream(packet.getData()));
+                byteIn = new ByteArrayInputStream(packet.getData());
+                inStream = new DataInputStream(byteIn);
 
+                // Si no se ha establecido conexión.
                 if(totalPackets == -1) {
+                    
                     // Recibir SYN
                     int SYNTAM = inStream.readInt();
                     byte[] bufferSYN = new byte[SYNTAM];
-                    int SYNx = inStream.read(bufferSYN);
+                    inStream.read(bufferSYN);
                     String SYN = new String(bufferSYN);
-                    System.out.println("\033[93mRecibiendo "+SYN+"\033[0m");
-                    // Enviar SYN
+                    System.out.println("\033[93mRecibido "+SYN+"\033[0m");
+                    
+                    // Enviar SYN - ACK
                     SYN += " - ACK";
                     byte[] SYNBytes = SYN.getBytes();
                     outStream.writeInt(SYNBytes.length);    // Tamaño cadena SYN
                     outStream.write(SYNBytes);              // SYN
                     outStream.flush();
-                    System.out.println("\033[93mEnviando SYN\033[0m");
+                    
                     bufferSYN = byteOut.toByteArray();
-                    DatagramPacket packetSYN = new DatagramPacket(bufferSYN, bufferSYN.length, packet.getAddress(), packet.getPort());
-                    socket.send(packetSYN);
+                    packet = new DatagramPacket(bufferSYN, bufferSYN.length, packet.getAddress(), packet.getPort());
+                    System.out.println("\033[93mEnviando "+SYN+"\033[0m");
+                    socket.send(packet);
                     byteOut.reset();
                     
+                    // Recbir ACK
+                    buffer = new byte[TAM_BUFFER];
+                    packet = new DatagramPacket(buffer, buffer.length);
+                    socket.receive(packet);
+                    byteIn = new ByteArrayInputStream(packet.getData());
+                    inStream = new DataInputStream(byteIn);
+
+                    SYNTAM = inStream.readInt();
+                    bufferSYN = new byte[SYNTAM];
+                    inStream.read(bufferSYN);
+                    SYN = new String(bufferSYN);
+                    System.out.println("\033[93mRecibido "+SYN+"\033[0m");
+
                     totalPackets = 0;
+                    continue;
                 }
 
                 // Flujo de entrada

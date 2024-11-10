@@ -29,42 +29,64 @@ public class Cliente {
             int MAX_PAQUETES = (int) bytes.length/TAM_VENTANA;
             int TOTAL_PAQUETES = (int) bytes.length%TAM_VENTANA == 0 ? MAX_PAQUETES : MAX_PAQUETES+1;
 
+            // Clases para enviar información
             ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             DataOutputStream outStream = new DataOutputStream(byteOut);
+
+            // Clases para recibir inormación
+            ByteArrayInputStream byteIn;
+            DataInputStream inStream;
+
             DatagramSocket socket = new DatagramSocket();
             InetAddress direccion = InetAddress.getByName(dir_host);
 
-            // ---------------------------------
-            //             HANDSHAKE
-            // ---------------------------------
+            // ------------------------------------------------------------------------
+            //                                  HANDSHAKE
+            // ------------------------------------------------------------------------
             
-            // Primer mensaje
+            // Enviar SYN
             String SYN = "SYN";
             byte[] SYNBytes = SYN.getBytes();
             outStream.writeInt(SYNBytes.length);    // Tamaño cadena SYN
             outStream.write(SYNBytes);              // SYN
             outStream.flush();
-            System.out.println("\033[93mEnviando SYN\033[0m");
-            byte[] bufferSYN = byteOut.toByteArray();
-            DatagramPacket packetSYN = new DatagramPacket(bufferSYN, bufferSYN.length, direccion, PORT);
-            socket.send(packetSYN);
-            byteOut.reset();
-            // Recibir mensaje
-
-/*
             
-            outStream.writeInt(TOTAL_PAQUETES); // Total de paquetes
-            byte[] temp = ruta.getBytes();
-            outStream.writeInt(temp.length);    // Tamaño de la ruta
-            outStream.write(temp);              // Ruta
-            outStream.flush();
-            // Enviar paquete
-            System.out.println("enviando SYN");
-            byte[] bufferOut = byteOut.toByteArray();
-            DatagramPacket packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
+            byte[] bufferSYN = byteOut.toByteArray();
+            DatagramPacket packet = new DatagramPacket(bufferSYN, bufferSYN.length, direccion, PORT);
+            System.out.println("\033[93mEnviando "+SYN+"\033[0m");
             socket.send(packet);
-            byteOut.reset();*/
+            byteOut.reset();
 
+            // Recibir SYN - ACK
+            byte[] buffer = new byte[TAM_BUFFER];
+            packet = new DatagramPacket(buffer, buffer.length);
+            socket.receive(packet);
+            byteIn = new ByteArrayInputStream(packet.getData());
+            inStream = new DataInputStream(byteIn);
+
+            int SYNTAM = inStream.readInt();
+            bufferSYN = new byte[SYNTAM];
+            inStream.read(bufferSYN);
+            SYN = new String(bufferSYN);
+            System.out.println("\033[93mRecibido "+SYN+"\033[0m");
+
+            // Enviar ACK
+            SYN = SYN.substring(6, 9);
+            SYNBytes = SYN.getBytes();
+            outStream.writeInt(SYNBytes.length);    // Tamaño cadena SYN
+            outStream.write(SYNBytes);              // SYN
+            outStream.flush();
+            
+            bufferSYN = byteOut.toByteArray();
+            packet = new DatagramPacket(bufferSYN, bufferSYN.length, direccion, PORT);
+            System.out.println("\033[93mEnviando "+SYN+"\033[0m");
+            socket.send(packet);
+            byteOut.reset();
+
+            // ------------------------------------------------------------------------
+            //                                   DATOS
+            // ------------------------------------------------------------------------
+            
             int currentPacket = 0;
             while(currentPacket < MAX_PAQUETES) {
                 outStream.writeInt(currentPacket);  // Número de paquete
@@ -76,15 +98,16 @@ public class Cliente {
                 // Enviar paquete
                 System.out.println("Enviando el paquete "+currentPacket+" con el mensaje: "+new String(btmp));
                 byte[] bufferOut = byteOut.toByteArray();
-                DatagramPacket packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
+                packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
                 socket.send(packet);
                 byteOut.reset();
 
                 // Recibir el ACK
-                byte[] buffer = new byte[TAM_BUFFER];
-                DatagramPacket ACK = new DatagramPacket(buffer, buffer.length);
-                socket.receive(ACK);
-                DataInputStream inStream = new DataInputStream(new ByteArrayInputStream(packet.getData()));
+                buffer = new byte[TAM_BUFFER];
+                packet = new DatagramPacket(buffer, buffer.length);
+                socket.receive(packet);
+                byteIn = new ByteArrayInputStream(packet.getData());
+                inStream = new DataInputStream(byteIn);
                 int n = inStream.readInt();
                 System.out.println("\033[96mACK: \033[0m"+n);
                 if(n == currentPacket)
@@ -103,15 +126,16 @@ public class Cliente {
                     // Enviar paquete
                     System.out.println("Enviando el paquete "+(MAX_PAQUETES)+" con el mensaje: "+new String(btmp));
                     byte[] bufferOut = byteOut.toByteArray();
-                    DatagramPacket packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
+                    packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
                     socket.send(packet);
                     byteOut.reset();
 
                     // Recibir el ACK
-                    byte[] buffer = new byte[TAM_BUFFER];
+                    buffer = new byte[TAM_BUFFER];
                     DatagramPacket ACK = new DatagramPacket(buffer, buffer.length);
                     socket.receive(ACK);
-                    DataInputStream inStream = new DataInputStream(new ByteArrayInputStream(packet.getData()));
+                    byteIn = new ByteArrayInputStream(packet.getData());
+                    inStream = new DataInputStream(byteIn);
                     int n = inStream.readInt();
                     System.out.println("\033[96mACK: \033[0m"+n);
                     if(n == currentPacket)
