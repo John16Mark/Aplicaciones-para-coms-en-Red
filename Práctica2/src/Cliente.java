@@ -13,14 +13,14 @@ import java.util.Arrays;
 
 public class Cliente {
 
-    final public static int TAM_VENTANA = 4;
-    final public static int TAM_PAQUETE = 5;
+    final public static int TAM_VENTANA = 5;
+    final public static int TAM_PAQUETE = 10000;
     final public static int TAM_BUFFER = 65535;
     final static String dir_host = "127.0.0.1";
     final static int PORT = 5555;
     final static int TIEMPO_ESPERA = 2000;
 
-    final static String fileName = "./archivo.txt";
+    final static String fileName = "./Marvel VS Capcom.exe";
 
     public static void main(String[] args){
 
@@ -116,7 +116,8 @@ public class Cliente {
                     outStream.flush();
 
                     // Enviar paquete
-                    System.out.println("Enviando el paquete "+apuntador+" con el mensaje: "+new String(btmp));
+                    //System.out.println("Enviando el paquete "+apuntador+" con el mensaje: ");
+                    //System.out.println(new String(btmp));
                     byte[] bufferOut = byteOut.toByteArray();
                     packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
                     socket.send(packet);
@@ -138,7 +139,7 @@ public class Cliente {
                         start = n + 1; // Mover el inicio de la ventana
 
                 } catch (SocketTimeoutException e) {
-                    System.out.println("Timeout: retransmitiendo desde el paquete " + start);
+                    System.out.println("\033[31mTIMEOUT: retransmitiendo desde el paquete " + start+"\033[0m");
                     apuntador = start; // Empezar a transmitir los paquetes desde el inicio de la ventana
                 }
             }
