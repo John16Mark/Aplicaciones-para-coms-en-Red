@@ -85,11 +85,16 @@ public class Servidor {
                 }
 
                 // Flujo de entrada
-                int n = inStream.readInt();         // Número de paquete
-                int tam = inStream.readInt();       // Tamaño del paquete
-                byte[] bufferIn = new byte[tam];           // datos en bytes
-                int x = inStream.read(bufferIn);
-                String cadena = new String(bufferIn);      // Cadena de los bytes
+                int n = inStream.readInt();                 // Número de paquete
+                totalPackets = inStream.readInt();          // Total de paquetes
+                int tamFileName = inStream.readInt();       // Tamaño de la ruta del archivo
+                byte[] bufferIn = new byte[tamFileName];    // Ruta del archivo en bytes
+                inStream.read(bufferIn);
+                String fileName = new String(bufferIn);     // Cadena de los bytes
+                int tam = inStream.readInt();               // Tamaño de los datos
+                bufferIn = new byte[tam];                   // datos en bytes
+                inStream.read(bufferIn);
+                String cadena = new String(bufferIn);       // Cadena de los bytes
                 
                 if(expectedPacket == n) {
                     outStream.writeInt(n);
@@ -101,12 +106,17 @@ public class Servidor {
                     expectedPacket++;
                 }
                 
-                System.out.println("\033[92mPaquete recibido. \033[95m#paquete: \033[0m"+ n+ "\t\033[95mtam: \033[0m"+tam+" bytes\t\033[95mx: \033[0m"+x);
+                System.out.println("\033[92mPaquete recibido. \033[95m#paq: \033[0m"+ n+ "\t\033[95mTotalPaq: \033[0m"+totalPackets+"\t\033[95mFileName: \033[0m"+fileName+"\t\033[95mtam: \033[0m"+tam+" bytes");
                 System.out.println(cadena);
                 inStream.close();
 
                 Path path = Paths.get(dir_server+nombre_archivo);
                 Files.write(path, bufferIn);
+
+                if(expectedPacket == totalPackets) {
+                    expectedPacket = 0;
+                    totalPackets = -1;
+                }
             }
         }
         catch(Exception e) {

@@ -4,6 +4,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -12,23 +13,27 @@ import java.util.Arrays;
 
 public class Cliente {
 
-    final public static int TAM_VENTANA = 10;
-    final public static int TAM_PAQUETE = 20;
+    final public static int TAM_VENTANA = 4;
+    final public static int TAM_PAQUETE = 5;
     final public static int TAM_BUFFER = 65535;
     final static String dir_host = "127.0.0.1";
     final static int PORT = 5555;
     final static int TIEMPO_ESPERA = 2000;
 
-    final static String ruta = "./archivo.txt";
+    final static String fileName = "./archivo.txt";
 
     public static void main(String[] args){
+
+        String filePath = "./";
+
         try{
-            Path path = Paths.get(ruta);
-            byte[] bytes = Files.readAllBytes(path);
+            Path path = Paths.get(fileName);
+            byte[] file = Files.readAllBytes(path);
+            byte[] fileNameBytes = fileName.getBytes();
 
             int tam = TAM_PAQUETE;
-            int MAX_PAQUETES = (int) bytes.length/TAM_PAQUETE;
-            int TOTAL_PAQUETES = (int) bytes.length%TAM_PAQUETE == 0 ? MAX_PAQUETES : MAX_PAQUETES+1;
+            int MAX_PAQUETES = (int) file.length/TAM_PAQUETE;
+            int TOTAL_PAQUETES = (int) file.length%TAM_PAQUETE == 0 ? MAX_PAQUETES : MAX_PAQUETES+1;
 
             // Clases para enviar información
             ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
@@ -88,42 +93,59 @@ public class Cliente {
             //                                   DATOS
             // ------------------------------------------------------------------------
             
-            int currentPacket = 0;
-            int n_sobrantes = (int) bytes.length % TAM_PAQUETE;
-            while(currentPacket < TOTAL_PAQUETES) {
-                outStream.writeInt(currentPacket);  // Número de paquete
-                byte[] btmp;
-                // Si el paquete final es menor a la 
-                if(currentPacket == MAX_PAQUETES)
-                    btmp = Arrays.copyOfRange(bytes, currentPacket*tam, currentPacket*tam + n_sobrantes);
-                else
-                    btmp = Arrays.copyOfRange(bytes, currentPacket*tam, currentPacket*tam + tam);
-                outStream.writeInt(btmp.length);    // Tamaño de paquete
-                outStream.write(btmp);              // Datos
-                outStream.flush();
+            //int currentPacket = 0;
+            int n_sobrantes = (int) file.length % TAM_PAQUETE;
 
-                // Enviar paquete
-                System.out.println("Enviando el paquete "+currentPacket+" con el mensaje: "+new String(btmp));
-                byte[] bufferOut = byteOut.toByteArray();
-                packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
-                socket.send(packet);
-                byteOut.reset();
+            int start = 0; // Índice de la ventana de paquetes enviados pero no confirmados
+            int apuntador = 0; // Índice del siguiente paquete a enviar
+            while (start < TOTAL_PAQUETES) {
+                // Enviar paquetes en la ventana
+                while (apuntador < start + TAM_VENTANA && apuntador < TOTAL_PAQUETES) {
+                    byte[] btmp;
+                    // Si es el paquete final (y es más pequeño que el tamaño de paquete)
+                    if(apuntador == MAX_PAQUETES)
+                        btmp = Arrays.copyOfRange(file, apuntador*tam, apuntador*tam + n_sobrantes);
+                    else
+                        btmp = Arrays.copyOfRange(file, apuntador*tam, apuntador*tam + tam);
+                    outStream.writeInt(apuntador);              // Número de paquete
+                    outStream.writeInt(TOTAL_PAQUETES);         // Total de paquetes
+                    outStream.writeInt(fileNameBytes.length);   // Tamaño del nombre del archivo
+                    outStream.write(fileNameBytes);             // Nombre del archivo
+                    outStream.writeInt(btmp.length);            // Tamaño de los datos
+                    outStream.write(btmp);                      // Datos
+                    outStream.flush();
 
-                // Recibir el ACK
-                buffer = new byte[TAM_BUFFER];
-                packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet);
-                byteIn = new ByteArrayInputStream(packet.getData());
-                inStream = new DataInputStream(byteIn);
-                int n = inStream.readInt();
-                System.out.println("\033[96mACK: \033[0m"+n);
-                if(n == currentPacket)
-                    currentPacket++;
+                    // Enviar paquete
+                    System.out.println("Enviando el paquete "+apuntador+" con el mensaje: "+new String(btmp));
+                    byte[] bufferOut = byteOut.toByteArray();
+                    packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
+                    socket.send(packet);
+                    byteOut.reset();
+                        apuntador++;
+                }
+
+                try {
+                    // Recibir el ACK
+                    socket.setSoTimeout(TIEMPO_ESPERA);
+                    buffer = new byte[TAM_BUFFER];
+                    packet = new DatagramPacket(buffer, buffer.length);
+                    socket.receive(packet);
+                    byteIn = new ByteArrayInputStream(packet.getData());
+                    inStream = new DataInputStream(byteIn);
+                    int n = inStream.readInt();
+                    System.out.println("\033[96mACK: \033[0m"+n);
+                    if (n >= start)
+                        start = n + 1; // Mover el inicio de la ventana
+
+                } catch (SocketTimeoutException e) {
+                    System.out.println("Timeout: retransmitiendo desde el paquete " + start);
+                    apuntador = start; // Empezar a transmitir los paquetes desde el inicio de la ventana
+                }
             }
 
             outStream.close();
             socket.close();
-        }catch(Exception e){
+        } catch(Exception e) {
             e.printStackTrace();
         }
     }
