@@ -19,7 +19,6 @@ public class Servidor {
     final static int TIEMPO_ESPERA = 2000;
 
     final static String dir_server = "./server/";
-    //final static String nombre_archivo = "archivo.exe";
 
     public static void main(String[] args) {
         // Crear el socket para recibir
@@ -44,6 +43,10 @@ public class Servidor {
 
             while(true) {
                 try {
+                    if(!handshake) {
+                        System.out.println("\033[92mEsperando Handshake");
+                        System.out.flush();
+                    }
                     // Recibir paquete
                     byte[] buffer = new byte[TAM_BUFFER];
                     DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
@@ -53,13 +56,17 @@ public class Servidor {
 
                     // Si no se ha establecido conexión.
                     if(!handshake) {
-                        
+
                         // Recibir SYN
                         int SYNTAM = inStream.readInt();
                         byte[] bufferSYN = new byte[SYNTAM];
                         inStream.read(bufferSYN);
                         String SYN = new String(bufferSYN);
+                        if(!SYN.equals("SYN")) {
+                            throw(new SocketTimeoutException());
+                        }
                         System.out.println("\033[93mRecibido "+SYN+"\033[0m");
+                        System.out.flush();
                         
                         // Enviar SYN - ACK
                         SYN += " - ACK";
@@ -71,6 +78,7 @@ public class Servidor {
                         bufferSYN = byteOut.toByteArray();
                         packet = new DatagramPacket(bufferSYN, bufferSYN.length, packet.getAddress(), packet.getPort());
                         System.out.println("\033[93mEnviando "+SYN+"\033[0m");
+                        System.out.flush();
                         socket.send(packet);
                         byteOut.reset();
                         
@@ -86,6 +94,7 @@ public class Servidor {
                         inStream.read(bufferSYN);
                         SYN = new String(bufferSYN);
                         System.out.println("\033[93mRecibido "+SYN+"\033[0m");
+                        System.out.flush();
 
                         handshake = true;
                         continue;
@@ -93,6 +102,10 @@ public class Servidor {
 
                     // Flujo de entrada
                     int n = inStream.readInt();                 // Número de paquete
+                    if(n == -5) {
+                        System.out.println("\033[96mRecibido paquete Standby.\033[0m");
+                        continue;
+                    }
                     if(totalPackets == -1)
                         totalPackets = inStream.readInt();      // Total de paquetes
                     else
@@ -101,17 +114,17 @@ public class Servidor {
                     byte[] bufferIn = new byte[tamFileName];    // Ruta del archivo en bytes
                     inStream.read(bufferIn);
                     if(nombreArchivo == "")
-                        nombreArchivo = new String(bufferIn);     // Cadena de los bytes
+                        nombreArchivo = new String(bufferIn);   // Cadena de los bytes
                     int tam = inStream.readInt();               // Tamaño de los datos
                     bufferIn = new byte[tam];                   // datos en bytes
                     inStream.read(bufferIn);
-                    String cadena = new String(bufferIn);       // Cadena de los bytes
+                    //String cadena = new String(bufferIn);       // Cadena de los bytes
                     
                     Path path = Paths.get(dir_server+nombreArchivo);
                     if (expectedPacket == 0) {
                         Files.write(path, new byte[0]);
                     }
-                    
+
                     // Abrir el archivo, escribir los datos y cerrarlo inmediatamente
                     try {
                         Files.write(path, bufferIn, StandardOpenOption.APPEND);
@@ -127,13 +140,16 @@ public class Servidor {
                         }
                     } catch (IOException e) {
                         System.err.println("Error al escribir en el archivo: " + e.getMessage());
+                        System.err.flush();
                     }
 
                     System.out.println("\033[92mPaquete recibido. \033[95m#paq: \033[0m"+ n+ "\t\033[95mTotalPaq: \033[0m"+totalPackets+"\t\033[95mFileName: \033[0m"+nombreArchivo+"\t\033[95mtam: \033[0m"+tam+" bytes");
+                    System.out.flush();
                     //System.out.println(cadena);
                     inStream.close();
 
                     if(expectedPacket == totalPackets) {
+                        System.out.println("\033[94mRecibo exitoso del archivo "+nombreArchivo+".\033[0m");
                         expectedPacket = 0;
                         handshake = false;
                         totalPackets = -1;
@@ -142,6 +158,11 @@ public class Servidor {
                 }
                 catch (SocketTimeoutException e) {
                     System.out.println("\033[31mTIMEOUT: no se recibió el paquete esperado.\033[0m");
+                    System.out.flush();
+                    expectedPacket = 0;
+                    handshake = false;
+                    totalPackets = -1;
+                    nombreArchivo = "";
                 }
             }
         }

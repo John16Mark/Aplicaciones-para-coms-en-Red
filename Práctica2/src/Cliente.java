@@ -3,7 +3,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
-
+import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
@@ -26,7 +26,7 @@ public class Cliente {
     final public static int TAM_BUFFER = 65535;
     final static String dir_host = "127.0.0.1";
     final static int PORT = 5555;
-    final static int TIEMPO_ESPERA = 2000;
+    final static int TIEMPO_ESPERA = 500;
 
     //final static String fileName = "./archivo.txt";
     static String nombreArchivo = "";
@@ -109,12 +109,35 @@ public class Cliente {
             ByteArrayInputStream byteIn;
             DataInputStream inStream;
 
+            // Crear el hilo para enviar el "ping" (-5) cada cierto tiempo
+            Thread keepAliveThread = new Thread(new Runnable() {
+                public void run() {
+                    try {
+                        while (true) {
+                            // Crear el paquete de datagrama con el valor -5
+                            byte[] data = new byte[4]; // Un entero ocupa 4 bytes
+                            outStream.writeInt(-5);
+                            data = byteOut.toByteArray();
+                            DatagramPacket packet = new DatagramPacket(data, data.length, direccion, PORT); // Asegúrate de usar el puerto correcto
+                            socket.send(packet);
+                            System.out.println("\033[96mEnviando paquete standby.");
+                            // Espera 2 segundos antes de volver a enviar el paquete (-5)
+                            Thread.sleep(500); // Espera de 2 segundos
+                        }
+                    } catch (InterruptedException e) {
+                        // Salida silenciosa al ser interrumpido
+                        Thread.currentThread().interrupt(); // Reestablecer el estado de interrupción
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+            keepAliveThread.start();
+
             // ------------------------------------------------------------------------
             //                                   DATOS
             // ------------------------------------------------------------------------
 
-            byteOut = new ByteArrayOutputStream();
-            outStream = new DataOutputStream(byteOut);
             DatagramPacket packet;
 
             JFileChooser jfc = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
@@ -124,6 +147,7 @@ public class Cliente {
                 rutaArchivo = selectedFile.getAbsolutePath();
                 nombreArchivo = selectedFile.getName();
             }
+            keepAliveThread.interrupt();
 
             Path path = Paths.get(rutaArchivo);
             byte[] file = Files.readAllBytes(path);
@@ -154,10 +178,10 @@ public class Cliente {
                     outStream.flush();
 
                     // Enviar paquete
-                    //System.out.println("Enviando el paquete "+apuntador+" con el mensaje: ");
-                    //System.out.println(new String(btmp));
                     byte[] bufferOut = byteOut.toByteArray();
                     packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
+                    /*System.out.println("Enviando el paquete "+apuntador+" con el mensaje: ");
+                    System.out.println(new String(btmp));*/
                     socket.send(packet);
                     byteOut.reset();
                         apuntador++;
@@ -172,7 +196,8 @@ public class Cliente {
                     byteIn = new ByteArrayInputStream(packet.getData());
                     inStream = new DataInputStream(byteIn);
                     int n = inStream.readInt();
-                    System.out.println("\033[96mACK: \033[0m"+n);
+                    System.out.println("\033[95mACK: \033[0m"+n);
+                    System.out.flush();
                     if (n >= start)
                         start = n + 1; // Mover el inicio de la ventana
 
@@ -181,6 +206,7 @@ public class Cliente {
                     apuntador = start; // Empezar a transmitir los paquetes desde el inicio de la ventana
                 }
             }
+            System.out.println("\033[94mEnvío exitoso del archivo "+nombreArchivo+".\033[0m");
 
             outStream.close();
             socket.close();
