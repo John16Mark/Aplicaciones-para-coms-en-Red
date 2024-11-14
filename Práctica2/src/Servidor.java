@@ -44,7 +44,7 @@ public class Servidor {
             while(true) {
                 try {
                     if(!handshake) {
-                        System.out.println("\033[92mEsperando Handshake");
+                        System.out.println("\033[92mEsperando Handshake.\033[0m");
                         System.out.flush();
                     }
                     // Recibir paquete

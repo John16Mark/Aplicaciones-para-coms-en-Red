@@ -3,7 +3,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
-import java.io.IOException;
+
 import java.net.DatagramSocket;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
@@ -13,8 +13,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import javax.swing.JButton;
+import javax.swing.JEditorPane;
+
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.border.Border;
+import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileSystemView;
 
 import java.util.Arrays;
@@ -31,7 +43,10 @@ public class Cliente {
     //final static String fileName = "./archivo.txt";
     static String nombreArchivo = "";
     static String rutaArchivo = "";
+    static Path rutaDirectorio;
 
+    static Window ventana;
+    
     public static void main(String[] args){
         try{
             // Clases para enviar información
@@ -48,7 +63,7 @@ public class Cliente {
             // ------------------------------------------------------------------------
             //                                  HANDSHAKE
             // ------------------------------------------------------------------------
-            
+            /*
             // Enviar SYN
             String SYN = "SYN";
             byte[] SYNBytes = SYN.getBytes();
@@ -73,6 +88,9 @@ public class Cliente {
             bufferSYN = new byte[SYNTAM];
             inStream.read(bufferSYN);
             SYN = new String(bufferSYN);
+            if(!SYN.equals("SYN - ACK")) {
+                //throw(new Exception());
+            }
             System.out.println("\033[93mRecibido "+SYN+"\033[0m");
 
             // Enviar ACK
@@ -87,8 +105,10 @@ public class Cliente {
             System.out.println("\033[93mEnviando "+SYN+"\033[0m");
             socket.send(packet);
             byteOut.reset();
-
-            subirArchivo(socket, direccion);
+*/
+            rutaDirectorio = Paths.get("./");
+            ventana = new Window(rutaDirectorio);
+            //subirArchivo(socket, direccion);
 
             outStream.close();
             socket.close();
@@ -109,30 +129,9 @@ public class Cliente {
             ByteArrayInputStream byteIn;
             DataInputStream inStream;
 
-            // Crear el hilo para enviar el "ping" (-5) cada cierto tiempo
-            Thread keepAliveThread = new Thread(new Runnable() {
-                public void run() {
-                    try {
-                        while (true) {
-                            // Crear el paquete de datagrama con el valor -5
-                            byte[] data = new byte[4]; // Un entero ocupa 4 bytes
-                            outStream.writeInt(-5);
-                            data = byteOut.toByteArray();
-                            DatagramPacket packet = new DatagramPacket(data, data.length, direccion, PORT); // Asegúrate de usar el puerto correcto
-                            socket.send(packet);
-                            System.out.println("\033[96mEnviando paquete standby.");
-                            // Espera 2 segundos antes de volver a enviar el paquete (-5)
-                            Thread.sleep(500); // Espera de 2 segundos
-                        }
-                    } catch (InterruptedException e) {
-                        // Salida silenciosa al ser interrumpido
-                        Thread.currentThread().interrupt(); // Reestablecer el estado de interrupción
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            });
-            keepAliveThread.start();
+            // Crear el hilo para mantener viva la conexión
+            Thread hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -5, TIEMPO_ESPERA));
+            hiloConexion.start();
 
             // ------------------------------------------------------------------------
             //                                   DATOS
@@ -147,7 +146,7 @@ public class Cliente {
                 rutaArchivo = selectedFile.getAbsolutePath();
                 nombreArchivo = selectedFile.getName();
             }
-            keepAliveThread.interrupt();
+            hiloConexion.interrupt();
 
             Path path = Paths.get(rutaArchivo);
             byte[] file = Files.readAllBytes(path);
@@ -203,10 +202,12 @@ public class Cliente {
 
                 } catch (SocketTimeoutException e) {
                     System.out.println("\033[31mTIMEOUT: retransmitiendo desde el paquete " + start+"\033[0m");
+                    System.out.flush();
                     apuntador = start; // Empezar a transmitir los paquetes desde el inicio de la ventana
                 }
             }
             System.out.println("\033[94mEnvío exitoso del archivo "+nombreArchivo+".\033[0m");
+            System.out.flush();
 
             outStream.close();
             socket.close();
@@ -215,14 +216,124 @@ public class Cliente {
         }
     }
     
-    static void borrarArchivo() {
+    static void borrarArchivo(DatagramSocket socket, InetAddress direccion) {
+        try {
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
 
-    }
+            // Clases para recibir inormación
+            ByteArrayInputStream byteIn;
+            DataInputStream inStream;
 
-    class Window extends JFrame {
-        public Window() {
+            DatagramPacket packet;
 
+        } catch(Exception e) {
+            e.printStackTrace();
         }
     }
 
+}
+
+class Window extends JFrame {
+    private JPanel contentPane;
+    private JPanel panelTituloBotones;
+    private JPanel panelTitulo;
+    private JPanel panelBtnIzquierda;
+    private JPanel panelBtnDerecha;
+
+    private JPanel panelDirectorio;
+    private JPanel panelBtnDirectorios;
+
+    private JLabel titulo;
+    private JEditorPane editorPane;
+    private JButton btnSubir;
+    private JButton btnBajar;
+    private JButton btnCrear;
+    private JButton btnBorrar;
+
+    private JButton btnAvanzar;
+    private JButton btnRegresar;
+    private JLabel directorio;
+
+    final static int WIDTH = 800;
+    final static int HEIGHT = 500;
+
+    final static Dimension tamBtn = new Dimension(250, 150);
+
+    public Window(Path rutaDirectorio) {
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		setBounds(100, 100, WIDTH, HEIGHT);
+		contentPane = new JPanel();
+		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
+
+		setContentPane(contentPane);
+		contentPane.setLayout(new BorderLayout(15, 0));
+		
+        // Panel superior
+		panelTituloBotones = new JPanel();
+		contentPane.add(panelTituloBotones, BorderLayout.NORTH);
+		panelTituloBotones.setLayout(new BorderLayout(0, 0));
+		
+        // Título
+		panelTitulo = new JPanel();
+		panelTituloBotones.add(panelTitulo, BorderLayout.NORTH);
+		titulo = new JLabel("Nube");
+        titulo.setFont(new java.awt.Font("Franklin Gothic Demi Cond", 0, 48)); // NOI18N
+		panelTitulo.add(titulo);
+		
+        // Botones izquierda
+		panelBtnIzquierda = new JPanel();
+		panelTituloBotones.add(panelBtnIzquierda, BorderLayout.WEST);
+		btnSubir = new JButton("Subir Archivo");
+		panelBtnIzquierda.add(btnSubir);
+		btnBajar = new JButton("Bajar Archivo");
+		panelBtnIzquierda.add(btnBajar);
+		btnCrear = new JButton("Crear carpeta");
+		panelBtnIzquierda.add(btnCrear);
+		
+        // Botones derecha
+		panelBtnDerecha = new JPanel();
+		panelTituloBotones.add(panelBtnDerecha, BorderLayout.EAST);
+		btnBorrar = new JButton("Borrar archivo/carpeta");
+		panelBtnDerecha.add(btnBorrar);
+
+        // panelBtnDirectorios
+        panelDirectorio = new JPanel();
+        panelTituloBotones.add(panelDirectorio, BorderLayout.SOUTH);
+        panelDirectorio.setLayout(new BorderLayout(0, 0));
+		
+        panelBtnDirectorios = new JPanel();
+        panelDirectorio.add(panelBtnDirectorios, BorderLayout.EAST);
+
+        btnAvanzar = new JButton("Entrar a directorio");
+        panelBtnDirectorios.add(btnAvanzar);
+        btnRegresar = new JButton("Subir un directorio");
+        panelBtnDirectorios.add(btnRegresar);
+        
+        directorio = new JLabel(rutaDirectorio.toString());
+        directorio.setFont(new java.awt.Font("Franklin Gothic Demi Cond", 0, 12)); // NOI18N
+        panelDirectorio.add(directorio, BorderLayout.WEST);
+		
+        // Texto
+        int epWidth = (2*WIDTH)/3;
+        int epHeight = (2*HEIGHT)/3-50;
+        editorPane = new JEditorPane();
+        editorPane.setContentType("text/html"); // Puede ser texto simple o HTML
+        editorPane.setText("<html><h1>Bienvenido</h1><p>Este es un ejemplo de JEditorPane.</p></html>");
+        editorPane.setPreferredSize(new Dimension(epWidth, epHeight));
+        editorPane.setEditable(false);
+
+        // Colocar el JEditorPane en un JScrollPane
+        JScrollPane scrollPane = new JScrollPane(editorPane);
+        contentPane.add(scrollPane, BorderLayout.SOUTH);
+
+        //btnSubir.set
+
+        setVisible(true);
+    }
+
+    public void actualizarDirectorio() {
+
+    }
 }
