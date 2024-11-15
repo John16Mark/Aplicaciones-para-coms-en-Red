@@ -30,7 +30,7 @@ public class HiloConexion implements Runnable {
                 byte[] data = byteOut.toByteArray();
                 DatagramPacket packet = new DatagramPacket(data, data.length, direccion, puerto);
                 socket.send(packet);
-                System.out.println("\033[96mEnviando paquete standby.");
+                System.out.println("\033[96mEnviando paquete Standby.\033[0m");
                 System.out.flush();
                 Thread.sleep(TIEMPO_ESPERA);
             }

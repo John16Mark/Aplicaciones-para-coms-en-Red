@@ -3,6 +3,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.IOException;
 
 import java.net.DatagramSocket;
 import java.net.DatagramPacket;
@@ -13,19 +14,21 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+
 import javax.swing.JButton;
 import javax.swing.JEditorPane;
-
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileSystemView;
 
@@ -44,9 +47,10 @@ public class Cliente {
     static String nombreArchivo = "";
     static String rutaArchivo = "";
     static Path rutaDirectorio;
+    static Thread hiloConexion;
 
     static Window ventana;
-    
+
     public static void main(String[] args){
         try{
             // Clases para enviar información
@@ -63,7 +67,7 @@ public class Cliente {
             // ------------------------------------------------------------------------
             //                                  HANDSHAKE
             // ------------------------------------------------------------------------
-            /*
+            
             // Enviar SYN
             String SYN = "SYN";
             byte[] SYNBytes = SYN.getBytes();
@@ -89,7 +93,9 @@ public class Cliente {
             inStream.read(bufferSYN);
             SYN = new String(bufferSYN);
             if(!SYN.equals("SYN - ACK")) {
-                //throw(new Exception());
+                outStream.close();
+                socket.close();
+                throw(new Exception("\033[31mError al establecer conexión."));
             }
             System.out.println("\033[93mRecibido "+SYN+"\033[0m");
 
@@ -105,19 +111,51 @@ public class Cliente {
             System.out.println("\033[93mEnviando "+SYN+"\033[0m");
             socket.send(packet);
             byteOut.reset();
-*/
+
+            // Recibir contenido del directorio
+            buffer = new byte[TAM_BUFFER];
+            packet = new DatagramPacket(buffer, buffer.length);
+            socket.receive(packet);
+            byteIn = new ByteArrayInputStream(packet.getData());
+            inStream = new DataInputStream(byteIn);
+            buffer = new byte[TAM_BUFFER];
+            inStream.read(buffer);
+            String contenido = new String(buffer);
+            System.out.println(contenido);
+
+            // Crear el hilo para mantener viva la conexión
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -5, TIEMPO_ESPERA));
+            hiloConexion.start();
+
             rutaDirectorio = Paths.get("./");
-            ventana = new Window(rutaDirectorio);
+            ventana = new Window(socket, direccion, rutaDirectorio);
+            ventana.actualizarDirectorio(contenido);
             //subirArchivo(socket, direccion);
 
-            outStream.close();
-            socket.close();
+            ventana.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                try {
+                    // Cerrar el outputStream y el socket cuando se cierra la ventana
+                    if (outStream != null) {
+                        outStream.close();
+                    }
+                    if (socket != null && !socket.isClosed()) {
+                        socket.close();
+                    }
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+            }
+            });
+            //outStream.close();
+            //socket.close();
         } catch(Exception e) {
             e.printStackTrace();
         }
         
     }
-
+    
     static void subirArchivo(DatagramSocket socket, InetAddress direccion) {
 
         try{
@@ -128,10 +166,6 @@ public class Cliente {
             // Clases para recibir inormación
             ByteArrayInputStream byteIn;
             DataInputStream inStream;
-
-            // Crear el hilo para mantener viva la conexión
-            Thread hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -5, TIEMPO_ESPERA));
-            hiloConexion.start();
 
             // ------------------------------------------------------------------------
             //                                   DATOS
@@ -209,15 +243,18 @@ public class Cliente {
             System.out.println("\033[94mEnvío exitoso del archivo "+nombreArchivo+".\033[0m");
             System.out.flush();
 
-            outStream.close();
-            socket.close();
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -5, TIEMPO_ESPERA));
+            hiloConexion.start();
+
+            
+
         } catch(Exception e) {
             e.printStackTrace();
         }
     }
     
     static void borrarArchivo(DatagramSocket socket, InetAddress direccion) {
-        try {
+        try {/*
             // Clases para enviar información
             ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             DataOutputStream outStream = new DataOutputStream(byteOut);
@@ -227,7 +264,7 @@ public class Cliente {
             DataInputStream inStream;
 
             DatagramPacket packet;
-
+*/
         } catch(Exception e) {
             e.printStackTrace();
         }
@@ -236,6 +273,10 @@ public class Cliente {
 }
 
 class Window extends JFrame {
+
+    DatagramSocket socket;
+    InetAddress direccion;
+
     private JPanel contentPane;
     private JPanel panelTituloBotones;
     private JPanel panelTitulo;
@@ -261,7 +302,10 @@ class Window extends JFrame {
 
     final static Dimension tamBtn = new Dimension(250, 150);
 
-    public Window(Path rutaDirectorio) {
+    public Window(DatagramSocket socket, InetAddress direccion, Path rutaDirectorio) {
+        this.socket = socket;
+        this.direccion = direccion;
+
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setBounds(100, 100, WIDTH, HEIGHT);
 		contentPane = new JPanel();
@@ -326,14 +370,56 @@ class Window extends JFrame {
 
         // Colocar el JEditorPane en un JScrollPane
         JScrollPane scrollPane = new JScrollPane(editorPane);
-        contentPane.add(scrollPane, BorderLayout.SOUTH);
+        scrollPane.setPreferredSize(null);
+        
+        JPanel panelContenido = new JPanel(new BorderLayout());
+        panelContenido.setBackground(new Color(200,15,200));
+        panelContenido.add(scrollPane, BorderLayout.CENTER);
+        panelContenido.setPreferredSize(new Dimension(epWidth, epHeight));
+        contentPane.add(panelContenido, BorderLayout.SOUTH);
+        
+        
+        //contentPane.add(scrollPane, BorderLayout.SOUTH);
 
-        //btnSubir.set
-
+        btnSubir.addActionListener(new ActionListener() { 
+            public void actionPerformed(ActionEvent e) { 
+                Cliente.subirArchivo(socket, direccion);
+            } 
+        });
+        
         setVisible(true);
     }
 
-    public void actualizarDirectorio() {
-
+    public void actualizarDirectorio(String contenido) {
+        String html = "<html>\n";
+        html += "<body style='width: 100%; margin: 0; padding: 0; background-color: #eeeeff'>\n";
+        html += "<table style='width: 100%; background-color: #eeeea0'>\n";
+        html += "<tr style='width: 100%'>\n"+
+                "\t<th style='width: 10%; background-color: #0A55D9; color: #ffffff'>dir</th>\n"+
+                "\t<th style='width: 90%; background-color: #0A55D9; color: #ffffff'>Nombre</th>\n"+
+                "</tr>\n";
+        String parts[] = contenido.split("\\?");
+        int cont=0;
+        for (String elemento : parts) {
+            html += "<tr style='width:100%;";
+            if(cont%2 == 0)
+                html+=" background-color: #ffffff'>\n";
+            else
+                html+=" background-color: #efefef'>\n";
+            html += "\t<td>";
+            if (!(elemento.contains(".") && elemento.lastIndexOf('.') != elemento.length() - 1)) {
+                html += "dir";
+            } else {
+                html += "";
+            }
+            html += "</td>\n"+
+                    "\t<td> <pre>"+elemento+"</pre> </td>\n"+
+                    "</tr>\n";
+                    System.out.println(elemento+"_");
+            cont++;
+        }
+        html+="</table></body></html>";
+        System.out.println(html);
+        editorPane.setText(html);
     }
 }
