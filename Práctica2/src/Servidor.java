@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -113,8 +114,27 @@ public class Servidor {
 
                     // Flujo de entrada
                     int accion = inStream.readInt();
-                    if(accion == -5) {
+                    if(accion == -1) {
                         System.out.println("\033[96mRecibido paquete Standby.\033[0m");
+                        continue;
+                    } else if(accion == -2) {
+                        System.out.println("\033[92mRecibido código para avanzar directorio\033[0m");
+                        byte[] buffer_path = new byte[TAM_BUFFER];
+                        inStream.read(buffer_path);
+                        String path = new String(buffer_path).trim();
+                        System.out.println(path);
+
+                        // Crear el nuevo Path concatenando el directorio actual con el recibido
+                        Path nuevoDir = dir_actual.resolve(path); // Resuelve y normaliza el path resultante
+
+                        // Verificar si es un directorio existente
+                        if (Files.isDirectory(nuevoDir)) {
+                            dir_actual = nuevoDir;
+                            System.out.println("Cambio de directorio exitoso a: " + dir_actual);
+                            dir(dir_actual, packet.getAddress(), packet.getPort());
+                        } else {
+                            System.out.println("\033[91mEl directorio no existe: " + nuevoDir+ "\033[0m");
+                        }
                         continue;
                     }
 
@@ -196,6 +216,24 @@ public class Servidor {
                     
     static void dir(Path p, InetAddress direccion, int port) {
         try (DatagramSocket socket = new DatagramSocket()) {
+            
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+
+            Path basePath = Paths.get(dir_server).normalize();
+            Path hiddenPath = p.normalize();
+            if (hiddenPath.startsWith(basePath)) {
+                hiddenPath = basePath.relativize(hiddenPath); // Obtener el path relativo
+            } else {
+                System.out.println("El directorio no es un subdirectorio de dir_server");
+                return;
+            }
+
+            byte[] path_bytes = hiddenPath.toString().getBytes();
+            outStream.writeInt(path_bytes.length);
+            outStream.write(path_bytes);
+        
             // Obtener lista de archivos y directorios
             List<String> filesAndDirs = Files.list(p)
                                              .map(Path::getFileName)
@@ -205,7 +243,10 @@ public class Servidor {
             // Convertir la lista en una cadena separada por comas
             String message = String.join("?", filesAndDirs);
 
-            byte[] buffer = message.getBytes();
+            byte[] buffer_contenido = message.getBytes();
+            outStream.writeInt(buffer_contenido.length);
+            outStream.write(buffer_contenido);
+            byte[] buffer = byteOut.toByteArray();
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length, direccion, port);
             socket.send(packet);
 

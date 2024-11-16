@@ -14,22 +14,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
-import javax.swing.JButton;
-import javax.swing.JEditorPane;
 import javax.swing.JFileChooser;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.border.EmptyBorder;
+import javax.swing.JOptionPane;
 import javax.swing.filechooser.FileSystemView;
 
 import java.util.Arrays;
@@ -118,18 +107,23 @@ public class Cliente {
             socket.receive(packet);
             byteIn = new ByteArrayInputStream(packet.getData());
             inStream = new DataInputStream(byteIn);
-            buffer = new byte[TAM_BUFFER];
+
+            int tam_camino = inStream.readInt();
+            buffer = new byte[tam_camino];
+            inStream.read(buffer);
+            String camino = new String(buffer);
+            int tam_contenido = inStream.readInt();
+            buffer = new byte[tam_contenido];
             inStream.read(buffer);
             String contenido = new String(buffer);
-            System.out.println(contenido);
 
             // Crear el hilo para mantener viva la conexión
-            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -5, TIEMPO_ESPERA));
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
             hiloConexion.start();
 
             rutaDirectorio = Paths.get("./");
             ventana = new Window(socket, direccion, rutaDirectorio);
-            ventana.actualizarDirectorio(contenido);
+            ventana.actualizarDirectorio(camino, contenido);
             //subirArchivo(socket, direccion);
 
             ventana.addWindowListener(new WindowAdapter() {
@@ -191,8 +185,8 @@ public class Cliente {
             int TOTAL_PAQUETES = (int) file.length%TAM_PAQUETE == 0 ? PAQUETES_COMPLETOS : PAQUETES_COMPLETOS+1;
             int n_sobrantes = (int) file.length % TAM_PAQUETE;
 
-            int start = 0; // Apuntador al inicio de la ventana
-            int apuntador = 0; // Apuntador al paquete que se va a mandar
+            int start = 0;      // Apuntador al inicio de la ventana
+            int apuntador = 0;  // Apuntador al paquete que se va a mandar
             while (start < TOTAL_PAQUETES) {
                 // Enviar paquetes en la ventana
                 while (apuntador < start + TAM_VENTANA && apuntador < TOTAL_PAQUETES) {
@@ -243,7 +237,7 @@ public class Cliente {
             System.out.println("\033[94mEnvío exitoso del archivo "+nombreArchivo+".\033[0m");
             System.out.flush();
 
-            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -5, TIEMPO_ESPERA));
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
             hiloConexion.start();
 
             
@@ -270,156 +264,71 @@ public class Cliente {
         }
     }
 
-}
+    static void avanzarDirectorio(DatagramSocket socket, InetAddress direccion) {
+        try {
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
 
-class Window extends JFrame {
+            // Clases para recibir inormación
+            ByteArrayInputStream byteIn;
+            DataInputStream inStream;
 
-    DatagramSocket socket;
-    InetAddress direccion;
+            DatagramPacket packet;
 
-    private JPanel contentPane;
-    private JPanel panelTituloBotones;
-    private JPanel panelTitulo;
-    private JPanel panelBtnIzquierda;
-    private JPanel panelBtnDerecha;
+            String path = JOptionPane.showInputDialog("Enter a path");
+            hiloConexion.interrupt();
 
-    private JPanel panelDirectorio;
-    private JPanel panelBtnDirectorios;
+            outStream.writeInt(-2);
+            byte[] buffer_path = path.getBytes();
+            outStream.write(buffer_path);
+            byte[] data = byteOut.toByteArray();
+            packet = new DatagramPacket(data, data.length, direccion, PORT);
+            socket.send(packet);
+            System.out.println("\033[92mEnviando avanzar a directorio \033[0m\n"+path);
+            System.out.flush();
 
-    private JLabel titulo;
-    private JEditorPane editorPane;
-    private JButton btnSubir;
-    private JButton btnBajar;
-    private JButton btnCrear;
-    private JButton btnBorrar;
+            // Recibir contenido del directorio
+            byte[] buffer = new byte[TAM_BUFFER];
+            packet = new DatagramPacket(buffer, buffer.length);
+            socket.receive(packet);
+            byteIn = new ByteArrayInputStream(packet.getData());
+            inStream = new DataInputStream(byteIn);
 
-    private JButton btnAvanzar;
-    private JButton btnRegresar;
-    private JLabel directorio;
+            int tam_camino = inStream.readInt();
+            buffer = new byte[tam_camino];
+            inStream.read(buffer);
+            String camino = new String(buffer);
+            int tam_contenido = inStream.readInt();
+            buffer = new byte[tam_contenido];
+            inStream.read(buffer);
+            String contenido = new String(buffer);
 
-    final static int WIDTH = 800;
-    final static int HEIGHT = 500;
+            ventana.actualizarDirectorio(camino, contenido);
 
-    final static Dimension tamBtn = new Dimension(250, 150);
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
+            hiloConexion.start();
 
-    public Window(DatagramSocket socket, InetAddress direccion, Path rutaDirectorio) {
-        this.socket = socket;
-        this.direccion = direccion;
-
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		setBounds(100, 100, WIDTH, HEIGHT);
-		contentPane = new JPanel();
-		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
-
-		setContentPane(contentPane);
-		contentPane.setLayout(new BorderLayout(15, 0));
-		
-        // Panel superior
-		panelTituloBotones = new JPanel();
-		contentPane.add(panelTituloBotones, BorderLayout.NORTH);
-		panelTituloBotones.setLayout(new BorderLayout(0, 0));
-		
-        // Título
-		panelTitulo = new JPanel();
-		panelTituloBotones.add(panelTitulo, BorderLayout.NORTH);
-		titulo = new JLabel("Nube");
-        titulo.setFont(new java.awt.Font("Franklin Gothic Demi Cond", 0, 48)); // NOI18N
-		panelTitulo.add(titulo);
-		
-        // Botones izquierda
-		panelBtnIzquierda = new JPanel();
-		panelTituloBotones.add(panelBtnIzquierda, BorderLayout.WEST);
-		btnSubir = new JButton("Subir Archivo");
-		panelBtnIzquierda.add(btnSubir);
-		btnBajar = new JButton("Bajar Archivo");
-		panelBtnIzquierda.add(btnBajar);
-		btnCrear = new JButton("Crear carpeta");
-		panelBtnIzquierda.add(btnCrear);
-		
-        // Botones derecha
-		panelBtnDerecha = new JPanel();
-		panelTituloBotones.add(panelBtnDerecha, BorderLayout.EAST);
-		btnBorrar = new JButton("Borrar archivo/carpeta");
-		panelBtnDerecha.add(btnBorrar);
-
-        // panelBtnDirectorios
-        panelDirectorio = new JPanel();
-        panelTituloBotones.add(panelDirectorio, BorderLayout.SOUTH);
-        panelDirectorio.setLayout(new BorderLayout(0, 0));
-		
-        panelBtnDirectorios = new JPanel();
-        panelDirectorio.add(panelBtnDirectorios, BorderLayout.EAST);
-
-        btnAvanzar = new JButton("Entrar a directorio");
-        panelBtnDirectorios.add(btnAvanzar);
-        btnRegresar = new JButton("Subir un directorio");
-        panelBtnDirectorios.add(btnRegresar);
-        
-        directorio = new JLabel(rutaDirectorio.toString());
-        directorio.setFont(new java.awt.Font("Franklin Gothic Demi Cond", 0, 12)); // NOI18N
-        panelDirectorio.add(directorio, BorderLayout.WEST);
-		
-        // Texto
-        int epWidth = (2*WIDTH)/3;
-        int epHeight = (2*HEIGHT)/3-50;
-        editorPane = new JEditorPane();
-        editorPane.setContentType("text/html"); // Puede ser texto simple o HTML
-        editorPane.setText("<html><h1>Bienvenido</h1><p>Este es un ejemplo de JEditorPane.</p></html>");
-        editorPane.setPreferredSize(new Dimension(epWidth, epHeight));
-        editorPane.setEditable(false);
-
-        // Colocar el JEditorPane en un JScrollPane
-        JScrollPane scrollPane = new JScrollPane(editorPane);
-        scrollPane.setPreferredSize(null);
-        
-        JPanel panelContenido = new JPanel(new BorderLayout());
-        panelContenido.setBackground(new Color(200,15,200));
-        panelContenido.add(scrollPane, BorderLayout.CENTER);
-        panelContenido.setPreferredSize(new Dimension(epWidth, epHeight));
-        contentPane.add(panelContenido, BorderLayout.SOUTH);
-        
-        
-        //contentPane.add(scrollPane, BorderLayout.SOUTH);
-
-        btnSubir.addActionListener(new ActionListener() { 
-            public void actionPerformed(ActionEvent e) { 
-                Cliente.subirArchivo(socket, direccion);
-            } 
-        });
-        
-        setVisible(true);
-    }
-
-    public void actualizarDirectorio(String contenido) {
-        String html = "<html>\n";
-        html += "<body style='width: 100%; margin: 0; padding: 0; background-color: #eeeeff'>\n";
-        html += "<table style='width: 100%; background-color: #eeeea0'>\n";
-        html += "<tr style='width: 100%'>\n"+
-                "\t<th style='width: 10%; background-color: #0A55D9; color: #ffffff'>dir</th>\n"+
-                "\t<th style='width: 90%; background-color: #0A55D9; color: #ffffff'>Nombre</th>\n"+
-                "</tr>\n";
-        String parts[] = contenido.split("\\?");
-        int cont=0;
-        for (String elemento : parts) {
-            html += "<tr style='width:100%;";
-            if(cont%2 == 0)
-                html+=" background-color: #ffffff'>\n";
-            else
-                html+=" background-color: #efefef'>\n";
-            html += "\t<td>";
-            if (!(elemento.contains(".") && elemento.lastIndexOf('.') != elemento.length() - 1)) {
-                html += "dir";
-            } else {
-                html += "";
-            }
-            html += "</td>\n"+
-                    "\t<td> <pre>"+elemento+"</pre> </td>\n"+
-                    "</tr>\n";
-                    System.out.println(elemento+"_");
-            cont++;
+        } catch(Exception e) {
+            e.printStackTrace();
         }
-        html+="</table></body></html>";
-        System.out.println(html);
-        editorPane.setText(html);
+    }
+
+    static void regresarDirectorio(DatagramSocket socket, InetAddress direccion) {
+        try {/*
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+
+            // Clases para recibir inormación
+            ByteArrayInputStream byteIn;
+            DataInputStream inStream;
+
+            DatagramPacket packet;
+*/
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
     }
 }
+

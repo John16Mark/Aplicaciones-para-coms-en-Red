@@ -14,12 +14,10 @@ public class Servidor {
     private static Instant fin;
     public static void main(String[] args) {
 
-        try {
-            // crea un socket y lo asocia a un puerto local
-            int pto = 8000;
-            ServerSocket s = new ServerSocket(pto);
+        int pto = 8000;
+        // crea un socket y lo asocia a un puerto local
+        try (ServerSocket s = new ServerSocket(pto)) {
             s.setReuseAddress(true); // enable/disable the SO_REUSEADDR socket option
-            
             System.out.println("Servidor iniciado, esperando conexión...");
 
             for(;;) {
