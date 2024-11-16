@@ -3,6 +3,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.file.Path;
@@ -135,7 +136,7 @@ class Window extends JFrame {
 
         btnCrear.addActionListener(new ActionListener() { 
             public void actionPerformed(ActionEvent e) { 
-                //Cliente.subirArchivo(socket, direccion);
+                Cliente.crearDirectorio(socket, direccion);
             } 
         });
 
@@ -169,6 +170,7 @@ class Window extends JFrame {
                 "\t<th style='width: 90%; background-color: #0A55D9; color: #ffffff'>Nombre</th>\n"+
                 "</tr>\n";
         if(!contenido.equals("")) {
+            File file = new File("./img/folder.png");
             String parts[] = contenido.split("\\?");
             int cont=0;
             for (String elemento : parts) {
@@ -179,7 +181,13 @@ class Window extends JFrame {
                     html+=" background-color: #efefef'>\n";
                 html += "\t<td>";
                 if (!(elemento.contains(".") && elemento.lastIndexOf('.') != elemento.length() - 1)) {
-                    html += "dir";
+                    if (file.exists()) {
+                        String absolutePath = file.toURI().toString();
+                        html += "<img src='" + absolutePath + "' width='30' height='30'>";
+                    } else {
+                        System.out.println("La imagen no se encontró: " + file.getAbsolutePath());
+                    }
+                    //html += "<img src='./folder.png' style='width: 30px; height: 30px'>";
                 } else {
                     html += "";
                 }

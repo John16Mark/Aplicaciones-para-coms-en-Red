@@ -130,8 +130,7 @@ public class Servidor {
                         String path = new String(buffer_path).trim();
                         System.out.println(path);
 
-                        // Crear el nuevo Path concatenando el directorio actual con el recibido
-                        Path nuevoDir = dir_actual.resolve(path); // Resuelve y normaliza el path resultante
+                        Path nuevoDir = dir_actual.resolve(path);
 
                         // Verificar si es un directorio existente
                         if (Files.isDirectory(nuevoDir)) {
@@ -150,9 +149,9 @@ public class Servidor {
                     else if(accion == -3) {
                         System.out.println("\033[92mRecibido código para regresar directorio\033[0m");
                         
-                        // Convertir `dir_server` a un Path
                         Path basePath = Paths.get(dir_server).normalize();
-                        // Comprobar si `dir_actual` es un subdirectorio de `dir_server`
+                        
+                        // Si no estamos ya en el directorio base
                         if (dir_actual.startsWith(basePath) && !dir_actual.equals(basePath)) {
                             dir_actual = dir_actual.getParent();
                             System.out.println("\033[94mRetrocediendo un directorio:\n" + dir_actual + "\033[0m");
@@ -163,7 +162,23 @@ public class Servidor {
                         }
                         continue;
                     }
-
+                    // ------------------------------------------------------------------------
+                    //                             CREAR DIRECTORIO
+                    // ------------------------------------------------------------------------
+                    else if(accion == -4) {
+                        System.out.println("\033[92mRecibido código para crear directorio\033[0m");
+                        
+                        byte[] buffer_path = new byte[TAM_BUFFER];
+                        inStream.read(buffer_path);
+                        String path = new String(buffer_path).trim();
+                        System.out.println(path);
+                        
+                        Path nuevoDir = dir_actual.resolve(path);
+                        Files.createDirectories(nuevoDir);
+                        
+                        dir(dir_actual, packet.getAddress(), packet.getPort());
+                        continue;
+                    }
                     // ------------------------------------------------------------------------
                     //                                  
                     // ------------------------------------------------------------------------

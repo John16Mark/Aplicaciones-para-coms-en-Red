@@ -264,6 +264,9 @@ public class Cliente {
         }
     }
 
+    // ------------------------------------------------------------------------
+    //                            AVANZAR DIRECTORIO
+    // ------------------------------------------------------------------------
     static void avanzarDirectorio(DatagramSocket socket, InetAddress direccion) {
         try {
             // Clases para enviar información
@@ -316,6 +319,9 @@ public class Cliente {
         }
     }
 
+    // ------------------------------------------------------------------------
+    //                             REGRESAR DIRECTORIO
+    // ------------------------------------------------------------------------
     static void regresarDirectorio(DatagramSocket socket, InetAddress direccion) {
         try {
             // Clases para enviar información
@@ -360,6 +366,60 @@ public class Cliente {
             hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
             hiloConexion.start();
         
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    //                             CREAR DIRECTORIO
+    // ------------------------------------------------------------------------
+    static void crearDirectorio(DatagramSocket socket, InetAddress direccion) {
+        try {
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+
+            // Clases para recibir inormación
+            ByteArrayInputStream byteIn;
+            DataInputStream inStream;
+
+            DatagramPacket packet;
+
+            String path = JOptionPane.showInputDialog("Nombre del nuevo directorio");
+            hiloConexion.interrupt();
+
+            // Enviar paquete con datos para avanzar directorio
+            outStream.writeInt(-4);
+            byte[] buffer_path = path.getBytes();
+            outStream.write(buffer_path);
+            byte[] data = byteOut.toByteArray();
+            packet = new DatagramPacket(data, data.length, direccion, PORT);
+            socket.send(packet);
+            System.out.println("\033[92mEnviando crear directorio \033[0m\n" + path);
+            System.out.flush();
+
+            // Recibir contenido del directorio
+            byte[] buffer = new byte[TAM_BUFFER];
+            packet = new DatagramPacket(buffer, buffer.length);
+            socket.receive(packet);
+            byteIn = new ByteArrayInputStream(packet.getData());
+            inStream = new DataInputStream(byteIn);
+
+            int tam_camino = inStream.readInt();
+            buffer = new byte[tam_camino];
+            inStream.read(buffer);
+            String camino = new String(buffer);
+            int tam_contenido = inStream.readInt();
+            buffer = new byte[tam_contenido];
+            inStream.read(buffer);
+            String contenido = new String(buffer);
+
+            ventana.actualizarDirectorio(camino, contenido);
+
+            // Continuar Standby
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
+            hiloConexion.start();
         } catch(Exception e) {
             e.printStackTrace();
         }
