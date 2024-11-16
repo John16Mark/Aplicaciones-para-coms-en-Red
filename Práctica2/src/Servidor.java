@@ -112,12 +112,18 @@ public class Servidor {
                         continue;
                     }
 
-                    // Flujo de entrada
+                    // ------------------------------------------------------------------------
+                    //                                   STANDBY
+                    // ------------------------------------------------------------------------
                     int accion = inStream.readInt();
                     if(accion == -1) {
                         System.out.println("\033[96mRecibido paquete Standby.\033[0m");
                         continue;
-                    } else if(accion == -2) {
+                    }
+                    // ------------------------------------------------------------------------
+                    //                            AVANZAR DIRECTORIO
+                    // ------------------------------------------------------------------------
+                    else if(accion == -2) {
                         System.out.println("\033[92mRecibido código para avanzar directorio\033[0m");
                         byte[] buffer_path = new byte[TAM_BUFFER];
                         inStream.read(buffer_path);
@@ -130,15 +136,33 @@ public class Servidor {
                         // Verificar si es un directorio existente
                         if (Files.isDirectory(nuevoDir)) {
                             dir_actual = nuevoDir;
-                            System.out.println("Cambio de directorio exitoso a: " + dir_actual);
+                            System.out.println("\033[94mCambio de directorio exitoso a: \n" + dir_actual + "\033[0m");
                             dir(dir_actual, packet.getAddress(), packet.getPort());
                         } else {
                             System.out.println("\033[91mEl directorio no existe: " + nuevoDir+ "\033[0m");
+                            dir(dir_actual, packet.getAddress(), packet.getPort());
                         }
                         continue;
                     }
-
-                    
+                    // ------------------------------------------------------------------------
+                    //                             REGRESAR DIRECTORIO
+                    // ------------------------------------------------------------------------
+                    else if(accion == -3) {
+                        System.out.println("\033[92mRecibido código para regresar directorio\033[0m");
+                        
+                        // Convertir `dir_server` a un Path
+                        Path basePath = Paths.get(dir_server).normalize();
+                        // Comprobar si `dir_actual` es un subdirectorio de `dir_server`
+                        if (dir_actual.startsWith(basePath) && !dir_actual.equals(basePath)) {
+                            dir_actual = dir_actual.getParent();
+                            System.out.println("\033[94mRetrocediendo un directorio:\n" + dir_actual + "\033[0m");
+                            dir(dir_actual, packet.getAddress(), packet.getPort());
+                        } else {
+                            System.out.println("\033[91mNo se puede retroceder. Ya estás en el directorio base:\n" + basePath + "\033[0m");
+                            dir(dir_actual, packet.getAddress(), packet.getPort());
+                        }
+                        continue;
+                    }
 
                     // ------------------------------------------------------------------------
                     //                                  

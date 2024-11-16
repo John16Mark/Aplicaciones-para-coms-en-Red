@@ -93,9 +93,9 @@ class Window extends JFrame {
         panelBtnDirectorios = new JPanel();
         panelDirectorio.add(panelBtnDirectorios, BorderLayout.EAST);
 
-        btnAvanzar = new JButton("Entrar a directorio");
+        btnAvanzar = new JButton("Avanzar directorio");
         panelBtnDirectorios.add(btnAvanzar);
-        btnRegresar = new JButton("Subir un directorio");
+        btnRegresar = new JButton("Regresar directorio");
         panelBtnDirectorios.add(btnRegresar);
         
         directorio = new JLabel(rutaDirectorio.toString());
@@ -193,6 +193,6 @@ class Window extends JFrame {
         html+="</table></body></html>";
         System.out.println(html);
         editorPane.setText(html);
-        directorio.setText(camino);
+        directorio.setText(".\\"+camino);
     }
 }
