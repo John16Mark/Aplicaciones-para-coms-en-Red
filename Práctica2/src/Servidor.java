@@ -118,6 +118,7 @@ public class Servidor {
                     int accion = inStream.readInt();
                     if(accion == -1) {
                         System.out.println("\033[96mRecibido paquete Standby.\033[0m");
+                        System.out.flush();
                         continue;
                     }
                     // ------------------------------------------------------------------------
@@ -125,6 +126,7 @@ public class Servidor {
                     // ------------------------------------------------------------------------
                     else if(accion == -2) {
                         System.out.println("\033[92mRecibido código para avanzar directorio\033[0m");
+                        System.out.flush();
                         byte[] buffer_path = new byte[TAM_BUFFER];
                         inStream.read(buffer_path);
                         String path = new String(buffer_path).trim();
@@ -136,9 +138,11 @@ public class Servidor {
                         if (Files.isDirectory(nuevoDir)) {
                             dir_actual = nuevoDir;
                             System.out.println("\033[94mCambio de directorio exitoso a: \n" + dir_actual + "\033[0m");
+                            System.out.flush();
                             dir(dir_actual, packet.getAddress(), packet.getPort());
                         } else {
                             System.out.println("\033[91mEl directorio no existe: " + nuevoDir+ "\033[0m");
+                            System.out.flush();
                             dir(dir_actual, packet.getAddress(), packet.getPort());
                         }
                         continue;
@@ -148,16 +152,19 @@ public class Servidor {
                     // ------------------------------------------------------------------------
                     else if(accion == -3) {
                         System.out.println("\033[92mRecibido código para regresar directorio\033[0m");
-                        
+                        System.out.flush();
+
                         Path basePath = Paths.get(dir_server).normalize();
                         
                         // Si no estamos ya en el directorio base
                         if (dir_actual.startsWith(basePath) && !dir_actual.equals(basePath)) {
                             dir_actual = dir_actual.getParent();
                             System.out.println("\033[94mRetrocediendo un directorio:\n" + dir_actual + "\033[0m");
+                            System.out.flush();
                             dir(dir_actual, packet.getAddress(), packet.getPort());
                         } else {
                             System.out.println("\033[91mNo se puede retroceder. Ya estás en el directorio base:\n" + basePath + "\033[0m");
+                            System.out.flush();
                             dir(dir_actual, packet.getAddress(), packet.getPort());
                         }
                         continue;
@@ -167,7 +174,8 @@ public class Servidor {
                     // ------------------------------------------------------------------------
                     else if(accion == -4) {
                         System.out.println("\033[92mRecibido código para crear directorio\033[0m");
-                        
+                        System.out.flush();
+
                         byte[] buffer_path = new byte[TAM_BUFFER];
                         inStream.read(buffer_path);
                         String path = new String(buffer_path).trim();
@@ -175,12 +183,63 @@ public class Servidor {
                         
                         Path nuevoDir = dir_actual.resolve(path);
                         Files.createDirectories(nuevoDir);
-                        
+
                         dir(dir_actual, packet.getAddress(), packet.getPort());
                         continue;
                     }
                     // ------------------------------------------------------------------------
-                    //                                  
+                    //                            ELIMINAR ARCHIVO
+                    // ------------------------------------------------------------------------
+                    else if(accion == -5) {
+                        System.out.println("\033[92mRecibido código para eliminar archivo/directorio\033[0m");
+                        System.out.flush();
+
+                        byte[] buffer_nombre = new byte[TAM_BUFFER];
+                        inStream.read(buffer_nombre);
+                        String nombre = new String(buffer_nombre).trim();
+                        System.out.println(nombre);
+                        if(nombre.equals("") || nombre.equals(".") || nombre.equals("..")) {
+                            System.out.println("\033[91mDirectorio inválido.\033[0m");
+                            System.out.flush();
+
+                            dir(dir_actual, packet.getAddress(), packet.getPort());
+                            continue;
+                        }
+
+                        // Crear la ruta del archivo o directorio
+                        Path pathToDelete = dir_actual.resolve(nombre);
+
+                        try {
+                            if (Files.exists(pathToDelete)) {
+                                if (Files.isDirectory(pathToDelete)) {
+                                    if (Files.list(pathToDelete).findAny().isPresent()) {
+                                        System.out.println("\033[91mEl directorio tiene elementos. No se puede eliminar.\033[0m");
+                                        System.out.flush();
+                                    } else {
+                                        Files.delete(pathToDelete);
+                                        System.out.println("\033[94mDirectorio eliminado:\n" + pathToDelete + "\033[0m");
+                                        System.out.flush();
+                                    }
+                                } else {
+                                    // Eliminar el archivo
+                                    Files.delete(pathToDelete);
+                                    System.out.println("\033[94mArchivo eliminado\n" + pathToDelete + "\033[0m");
+                                    System.out.flush();
+                                }
+                            } else {
+                                System.out.println("\033[91mEl archivo o directorio no existe:\n" + pathToDelete + "\033[0m");
+                                System.out.flush();
+                            }
+                        } catch (IOException e) {
+                            System.err.println("\033[91mError al intentar eliminar el archivo o directorio:\n" + e.getMessage() + "\033[0m");
+                            System.out.flush();
+                        }
+
+                        dir(dir_actual, packet.getAddress(), packet.getPort());
+                        continue;
+                    }
+                    // ------------------------------------------------------------------------
+                    //                               SUBIR ARCHIVO
                     // ------------------------------------------------------------------------
                     int n = accion;                             // Número de paquete
                     if(totalPackets == -1)
@@ -227,6 +286,7 @@ public class Servidor {
 
                     if(expectedPacket == totalPackets) {
                         System.out.println("\033[94mRecibo exitoso del archivo "+nombreArchivo+".\033[0m");
+                        System.out.flush();
                         expectedPacket = 0;
                         //handshake = false;
                         totalPackets = -1;
@@ -266,6 +326,7 @@ public class Servidor {
                 hiddenPath = basePath.relativize(hiddenPath); // Obtener el path relativo
             } else {
                 System.out.println("El directorio no es un subdirectorio de dir_server");
+                System.out.flush();
                 return;
             }
 
@@ -290,8 +351,10 @@ public class Servidor {
             socket.send(packet);
 
             System.out.println("Contenido del directorio enviado.");
+            System.out.flush();
         } catch (IOException e) {
             System.out.println("Error al enviar el contenido del directorio: " + e.getMessage());
+            System.out.flush();
         }
     }
 }

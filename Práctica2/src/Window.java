@@ -142,7 +142,7 @@ class Window extends JFrame {
 
         btnBorrar.addActionListener(new ActionListener() { 
             public void actionPerformed(ActionEvent e) { 
-                //Cliente.subirArchivo(socket, direccion);
+                Cliente.eliminarArchivo(socket, direccion);
             } 
         });
 
@@ -186,8 +186,8 @@ class Window extends JFrame {
                         html += "<img src='" + absolutePath + "' width='30' height='30'>";
                     } else {
                         System.out.println("La imagen no se encontró: " + file.getAbsolutePath());
+                        html += "";
                     }
-                    //html += "<img src='./folder.png' style='width: 30px; height: 30px'>";
                 } else {
                     html += "";
                 }
@@ -199,7 +199,6 @@ class Window extends JFrame {
             }
         }
         html+="</table></body></html>";
-        System.out.println(html);
         editorPane.setText(html);
         directorio.setText(".\\"+camino);
     }
