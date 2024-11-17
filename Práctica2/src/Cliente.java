@@ -13,7 +13,7 @@ import java.net.SocketTimeoutException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
+import java.nio.file.StandardOpenOption;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
@@ -30,7 +30,8 @@ public class Cliente {
     final public static int TAM_BUFFER = 65535;
     final static String dir_host = "127.0.0.1";
     final static int PORT = 5555;
-    final static int TIEMPO_ESPERA = 500;
+    final static int TIEMPO_ESPERA_ENVIAR = 500;
+    final static int TIEMPO_ESPERA_RECIBIR = 2000;
 
     //final static String fileName = "./archivo.txt";
     static String nombreArchivo = "";
@@ -118,7 +119,7 @@ public class Cliente {
             String contenido = new String(buffer);
 
             // Crear el hilo para mantener viva la conexión
-            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA_ENVIAR));
             hiloConexion.start();
 
             rutaDirectorio = Paths.get("./");
@@ -149,9 +150,276 @@ public class Cliente {
         }
         
     }
-    
-    static void subirArchivo(DatagramSocket socket, InetAddress direccion) {
 
+    // ------------------------------------------------------------------------
+    //                            AVANZAR DIRECTORIO
+    // ------------------------------------------------------------------------
+    static void avanzarDirectorio(DatagramSocket socket, InetAddress direccion) {
+        try {
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+            DatagramPacket packet;
+
+            String path = JOptionPane.showInputDialog("Introduzca el nombre del directorio");
+            hiloConexion.interrupt();
+
+            // Enviar paquete con datos para avanzar directorio
+            outStream.writeInt(-2);
+            byte[] buffer_path = path.getBytes();
+            outStream.write(buffer_path);
+            byte[] data = byteOut.toByteArray();
+            packet = new DatagramPacket(data, data.length, direccion, PORT);
+            socket.send(packet);
+            System.out.println("\033[92mEnviando avanzar a directorio \033[0m\n"+path);
+            System.out.flush();
+
+            // Recibir contenido del directorio
+            actualizarDirectorio(socket);
+
+            // Continuar Standby
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA_ENVIAR));
+            hiloConexion.start();
+
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    //                             REGRESAR DIRECTORIO
+    // ------------------------------------------------------------------------
+    static void regresarDirectorio(DatagramSocket socket, InetAddress direccion) {
+        try {
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+            DatagramPacket packet;
+
+            hiloConexion.interrupt();
+
+            // Enviar paquete con datos para regresar directorio
+            outStream.writeInt(-3);
+            byte[] data = byteOut.toByteArray();
+            packet = new DatagramPacket(data, data.length, direccion, PORT);
+            socket.send(packet);
+            System.out.println("\033[92mEnviando regresar directorio \033[0m");
+            System.out.flush();
+
+            // Recibir contenido del directorio
+            actualizarDirectorio(socket);
+
+            // Continuar Standby
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA_ENVIAR));
+            hiloConexion.start();
+        
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    //                             CREAR DIRECTORIO
+    // ------------------------------------------------------------------------
+    static void crearDirectorio(DatagramSocket socket, InetAddress direccion) {
+        try {
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+            DatagramPacket packet;
+
+            String path = JOptionPane.showInputDialog("Nombre del nuevo directorio");
+            if(path == null)
+                return;
+            hiloConexion.interrupt();
+
+            // Enviar paquete con datos para crear directorio
+            outStream.writeInt(-4);
+            byte[] buffer_path = path.getBytes();
+            outStream.write(buffer_path);
+            byte[] data = byteOut.toByteArray();
+            packet = new DatagramPacket(data, data.length, direccion, PORT);
+            socket.send(packet);
+            System.out.println("\033[92mEnviando crear directorio \033[0m\n" + path);
+            System.out.flush();
+
+            // Recibir contenido del directorio
+            actualizarDirectorio(socket);
+
+            // Continuar Standby
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA_ENVIAR));
+            hiloConexion.start();
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    //                            ELIMINAR ARCHIVO
+    // ------------------------------------------------------------------------
+    static void eliminarArchivo(DatagramSocket socket, InetAddress direccion) {
+        try {
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+            DatagramPacket packet;
+
+            String path = JOptionPane.showInputDialog("Nombre del archivo/directorio");
+            hiloConexion.interrupt();
+
+            // Enviar paquete con datos para eliminar archivo
+            outStream.writeInt(-5);
+            byte[] buffer_path = path.getBytes();
+            outStream.write(buffer_path);
+            byte[] data = byteOut.toByteArray();
+            packet = new DatagramPacket(data, data.length, direccion, PORT);
+            socket.send(packet);
+            System.out.println("\033[92mEnviando eliminar archivo \033[0m\n" + path);
+            System.out.flush();
+
+            // Recibir contenido del directorio
+            actualizarDirectorio(socket);
+
+            // Continuar Standby
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA_ENVIAR));
+            hiloConexion.start();
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    //                              BAJAR ARCHIVO
+    // ------------------------------------------------------------------------
+    static void bajarArchivo(DatagramSocket socket, InetAddress direccion) {
+        try {
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+
+            // Clases para recibir inormación
+            ByteArrayInputStream byteIn;
+            DataInputStream inStream;
+
+            DatagramPacket packet;
+
+            String nombre = JOptionPane.showInputDialog("Nombre del archivo/directorio");
+            if(nombre == null)
+                return;
+            JFileChooser f = new JFileChooser();
+            f.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY); 
+            int returnValue = f.showSaveDialog(null);
+            if (returnValue == JFileChooser.APPROVE_OPTION) {
+                File selectedFile = f.getSelectedFile();
+                rutaArchivo = selectedFile.getAbsolutePath();
+            } else
+                return;
+
+            Path dir_actual = Paths.get(rutaArchivo);
+            System.out.println(rutaArchivo);
+
+            hiloConexion.interrupt();
+
+            // Enviar paquete con datos para eliminar archivo
+            outStream.writeInt(-6);
+            byte[] buffer_path = nombre.getBytes();
+            outStream.write(buffer_path);
+            byte[] data = byteOut.toByteArray();
+            DatagramPacket packet_temp = new DatagramPacket(data, data.length, direccion, PORT);
+            socket.send(packet_temp);
+            outStream.flush();
+            System.out.println("\033[92mEnviando bajar archivo \033[0m\n" + nombre);
+            System.out.flush();
+
+            byteOut = new ByteArrayOutputStream();
+            outStream = new DataOutputStream(byteOut);
+
+            // Información del archivo
+            int totalPackets = -1;
+            int expectedPacket = 0;
+            String nombreArchivo = "";
+
+            socket.setSoTimeout(TIEMPO_ESPERA_RECIBIR);
+            while(true) {
+                try {
+                    // Recibir paquete
+                    byte[] buffer = new byte[TAM_BUFFER];
+                    packet = new DatagramPacket(buffer, buffer.length);
+                    socket.receive(packet);
+                    byteIn = new ByteArrayInputStream(packet.getData());
+                    inStream = new DataInputStream(byteIn);
+
+                    int n = inStream.readInt();
+                    if(totalPackets == -1)
+                        totalPackets = inStream.readInt();      // Total de paquetes
+                    else
+                        inStream.readInt();
+                    int tamFileName = inStream.readInt();       // Tamaño de la ruta del archivo
+                    byte[] bufferIn = new byte[tamFileName];    // Ruta del archivo en bytes
+                    inStream.read(bufferIn);
+                    if(nombreArchivo == "")
+                        nombreArchivo = new String(bufferIn);   // Cadena de los bytes
+                    int tam = inStream.readInt();               // Tamaño de los datos
+                    bufferIn = new byte[tam];
+                    inStream.read(bufferIn);                    // datos en bytes
+
+                    //Path path = Paths.get(dir_server+nombreArchivo);
+                    Path path = dir_actual.resolve(nombreArchivo);
+                    if (expectedPacket == 0) {
+                        Files.write(path, new byte[0]);
+                    }
+
+                    // Abrir el archivo, escribir los datos y cerrarlo inmediatamente
+                    try {
+                        Files.write(path, bufferIn, StandardOpenOption.APPEND);
+                        // Está en el try para que no mande el acuse si es que no se escribió bien el archivo
+                        if(expectedPacket == n) {
+                            outStream.writeInt(n);
+                            System.out.println("n: "+n);
+                            byte[] bufferOut = byteOut.toByteArray();
+                            DatagramPacket ACK = new DatagramPacket(bufferOut, bufferOut.length, packet.getAddress(), packet.getPort());
+                            socket.send(ACK);
+                            outStream.flush();
+                            byteOut.reset();
+                            expectedPacket++;
+                        }
+                    } catch (IOException e) {
+                        System.err.println("Error al escribir en el archivo: " + e.getMessage());
+                        System.err.flush();
+                    }
+
+                    System.out.println("\033[92mPaquete recibido. \033[95m#paq: \033[0m"+ n+ "\t\033[95mTotalPaq: \033[0m"+totalPackets+"\t\033[95mFileName: \033[0m"+nombreArchivo+"\t\033[95mtam: \033[0m"+tam+" bytes");
+                    System.out.flush();
+                    //System.out.println(cadena);
+                    inStream.close();
+
+                    if(expectedPacket == totalPackets) {
+                        System.out.println("\033[94mRecibo exitoso del archivo "+nombreArchivo+".\033[0m");
+                        System.out.flush();
+                        break;
+                    }
+
+                } catch (SocketTimeoutException e) {
+                    System.out.println("\033[31mTIMEOUT: no se recibió el paquete esperado.\033[0m");
+                    System.out.flush();
+                    expectedPacket = 0;
+                    totalPackets = -1;
+                    nombreArchivo = "";
+                }
+            }
+            socket.setSoTimeout(0);
+
+            // Continuar Standby
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA_ENVIAR));
+            hiloConexion.start();
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+    // ------------------------------------------------------------------------
+    //                              SUBIR ARCHIVO
+    // ------------------------------------------------------------------------
+    static void subirArchivo(DatagramSocket socket, InetAddress direccion) {
         try{
             // Clases para enviar información
             ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
@@ -173,9 +441,9 @@ public class Cliente {
                 File selectedFile = jfc.getSelectedFile();
                 rutaArchivo = selectedFile.getAbsolutePath();
                 nombreArchivo = selectedFile.getName();
-            } else {
+            } else
                 return;
-            }
+
             hiloConexion.interrupt();
 
             Path path = Paths.get(rutaArchivo);
@@ -218,7 +486,7 @@ public class Cliente {
 
                 try {
                     // Recibir el ACK
-                    socket.setSoTimeout(TIEMPO_ESPERA);
+                    socket.setSoTimeout(TIEMPO_ESPERA_ENVIAR);
                     byte[] buffer = new byte[TAM_BUFFER];
                     packet = new DatagramPacket(buffer, buffer.length);
                     socket.receive(packet);
@@ -242,7 +510,7 @@ public class Cliente {
             // Recibir contenido del directorio
             actualizarDirectorio(socket);
 
-            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA_ENVIAR));
             hiloConexion.start();
 
         } catch(Exception e) {
@@ -250,160 +518,6 @@ public class Cliente {
         }
     }
     
-    static void borrarArchivo(DatagramSocket socket, InetAddress direccion) {
-        try {/*
-            // Clases para enviar información
-            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-            DataOutputStream outStream = new DataOutputStream(byteOut);
-
-            // Clases para recibir inormación
-            ByteArrayInputStream byteIn;
-            DataInputStream inStream;
-
-            DatagramPacket packet;
-*/
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    //                            AVANZAR DIRECTORIO
-    // ------------------------------------------------------------------------
-    static void avanzarDirectorio(DatagramSocket socket, InetAddress direccion) {
-        try {
-            // Clases para enviar información
-            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-            DataOutputStream outStream = new DataOutputStream(byteOut);
-            DatagramPacket packet;
-
-            String path = JOptionPane.showInputDialog("Introduzca el nombre del directorio");
-            hiloConexion.interrupt();
-
-            // Enviar paquete con datos para avanzar directorio
-            outStream.writeInt(-2);
-            byte[] buffer_path = path.getBytes();
-            outStream.write(buffer_path);
-            byte[] data = byteOut.toByteArray();
-            packet = new DatagramPacket(data, data.length, direccion, PORT);
-            socket.send(packet);
-            System.out.println("\033[92mEnviando avanzar a directorio \033[0m\n"+path);
-            System.out.flush();
-
-            // Recibir contenido del directorio
-            actualizarDirectorio(socket);
-
-            // Continuar Standby
-            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
-            hiloConexion.start();
-
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    //                             REGRESAR DIRECTORIO
-    // ------------------------------------------------------------------------
-    static void regresarDirectorio(DatagramSocket socket, InetAddress direccion) {
-        try {
-            // Clases para enviar información
-            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-            DataOutputStream outStream = new DataOutputStream(byteOut);
-            DatagramPacket packet;
-
-            hiloConexion.interrupt();
-
-            // Enviar paquete con datos para regresar directorio
-            outStream.writeInt(-3);
-            byte[] data = byteOut.toByteArray();
-            packet = new DatagramPacket(data, data.length, direccion, PORT);
-            socket.send(packet);
-            System.out.println("\033[92mEnviando regresar directorio \033[0m");
-            System.out.flush();
-
-            // Recibir contenido del directorio
-            actualizarDirectorio(socket);
-
-            // Continuar Standby
-            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
-            hiloConexion.start();
-        
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    //                             CREAR DIRECTORIO
-    // ------------------------------------------------------------------------
-    static void crearDirectorio(DatagramSocket socket, InetAddress direccion) {
-        try {
-            // Clases para enviar información
-            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-            DataOutputStream outStream = new DataOutputStream(byteOut);
-            DatagramPacket packet;
-
-            String path = JOptionPane.showInputDialog("Nombre del nuevo directorio");
-            if(path == null)
-                return;
-            hiloConexion.interrupt();
-
-            // Enviar paquete con datos para crear directorio
-            outStream.writeInt(-4);
-            byte[] buffer_path = path.getBytes();
-            outStream.write(buffer_path);
-            byte[] data = byteOut.toByteArray();
-            packet = new DatagramPacket(data, data.length, direccion, PORT);
-            socket.send(packet);
-            System.out.println("\033[92mEnviando crear directorio \033[0m\n" + path);
-            System.out.flush();
-
-            // Recibir contenido del directorio
-            actualizarDirectorio(socket);
-
-            // Continuar Standby
-            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
-            hiloConexion.start();
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    //                            ELIMINAR ARCHIVO
-    // ------------------------------------------------------------------------
-    static void eliminarArchivo(DatagramSocket socket, InetAddress direccion) {
-        try {
-            // Clases para enviar información
-            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-            DataOutputStream outStream = new DataOutputStream(byteOut);
-            DatagramPacket packet;
-
-            String path = JOptionPane.showInputDialog("Nombre del archivo/directorio");
-            hiloConexion.interrupt();
-
-            // Enviar paquete con datos para eliminar archivo
-            outStream.writeInt(-5);
-            byte[] buffer_path = path.getBytes();
-            outStream.write(buffer_path);
-            byte[] data = byteOut.toByteArray();
-            packet = new DatagramPacket(data, data.length, direccion, PORT);
-            socket.send(packet);
-            System.out.println("\033[92mEnviando eliminar archivo \033[0m\n" + path);
-            System.out.flush();
-
-            // Recibir contenido del directorio
-            actualizarDirectorio(socket);
-
-            // Continuar Standby
-            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
-            hiloConexion.start();
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     static void actualizarDirectorio(DatagramSocket socket) {
         try {
             // Clases para recibir inormación

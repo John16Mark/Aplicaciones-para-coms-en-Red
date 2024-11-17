@@ -11,16 +11,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class Servidor {
 
-    final public static int TAM_VENTANA = 10;
+    final public static int TAM_VENTANA = 5;
+    final public static int TAM_PAQUETE = 10000;
     final public static int TAM_BUFFER = 65535;
     final static int PORT = 5555;
-    final static int TIEMPO_ESPERA = 2000;
+    final static int TIEMPO_ESPERA_ENVIAR = 500;
+    final static int TIEMPO_ESPERA_RECIBIR = 2000;
 
     static String dir_server;
     static Path dir_actual;
@@ -30,10 +32,9 @@ public class Servidor {
         
         try (DatagramSocket socket = new DatagramSocket(PORT)) {
             socket.setReuseAddress(true);
-            socket.setSoTimeout(TIEMPO_ESPERA);
+            socket.setSoTimeout(TIEMPO_ESPERA_RECIBIR);
             System.out.println("\033[94mServidor abierto\nEsperando datagrama...\033[0m");
             boolean handshake = false;
-            int expectedPacket = 0;
 
             String currentPath = new java.io.File(".").getCanonicalPath();
             dir_server = currentPath+"\\server\\";
@@ -50,6 +51,7 @@ public class Servidor {
 
             // Información del archivo
             int totalPackets = -1;
+            int expectedPacket = 0;
             String nombreArchivo = "";
 
             while(true) {
@@ -121,6 +123,7 @@ public class Servidor {
                         System.out.flush();
                         continue;
                     }
+
                     // ------------------------------------------------------------------------
                     //                            AVANZAR DIRECTORIO
                     // ------------------------------------------------------------------------
@@ -147,6 +150,7 @@ public class Servidor {
                         }
                         continue;
                     }
+
                     // ------------------------------------------------------------------------
                     //                             REGRESAR DIRECTORIO
                     // ------------------------------------------------------------------------
@@ -169,6 +173,7 @@ public class Servidor {
                         }
                         continue;
                     }
+
                     // ------------------------------------------------------------------------
                     //                             CREAR DIRECTORIO
                     // ------------------------------------------------------------------------
@@ -187,6 +192,7 @@ public class Servidor {
                         dir(dir_actual, packet.getAddress(), packet.getPort());
                         continue;
                     }
+
                     // ------------------------------------------------------------------------
                     //                            ELIMINAR ARCHIVO
                     // ------------------------------------------------------------------------
@@ -238,8 +244,88 @@ public class Servidor {
                         dir(dir_actual, packet.getAddress(), packet.getPort());
                         continue;
                     }
+
                     // ------------------------------------------------------------------------
-                    //                               SUBIR ARCHIVO
+                    //                              BAJAR ARCHIVO
+                    // ------------------------------------------------------------------------
+                    else if(accion == -6) {
+                        System.out.println("\033[92mRecibido código para bajar archivo.\033[0m");
+                        System.out.flush();
+
+                        byte[] buffer_nombre = new byte[TAM_BUFFER];
+                        inStream.read(buffer_nombre);
+                        String nombre = new String(buffer_nombre).trim();
+                        System.out.println(nombre);
+
+                        Path path = dir_actual.resolve(nombre);
+                        System.out.println("camino: "+path);
+                        byte[] file = Files.readAllBytes(path);
+                        byte[] fileNameBytes = nombre.getBytes();
+
+                        socket.setSoTimeout(TIEMPO_ESPERA_ENVIAR);
+
+                        int tam = TAM_PAQUETE;
+                        int PAQUETES_COMPLETOS = (int) file.length/TAM_PAQUETE;
+                        int TOTAL_PAQUETES = (int) file.length%TAM_PAQUETE == 0 ? PAQUETES_COMPLETOS : PAQUETES_COMPLETOS+1;
+                        int n_sobrantes = (int) file.length % TAM_PAQUETE;
+
+                        int start = 0;      // Apuntador al inicio de la ventana
+                        int apuntador = 0;  // Apuntador al paquete que se va a mandar
+                        while (start < TOTAL_PAQUETES) {
+                            // Enviar paquetes en la ventana
+                            while (apuntador < start + TAM_VENTANA && apuntador < TOTAL_PAQUETES) {
+                                byte[] btmp;
+                                // Si es el paquete final (y es más pequeño que el tamaño de paquete)
+                                if(apuntador == PAQUETES_COMPLETOS)
+                                    btmp = Arrays.copyOfRange(file, apuntador*tam, apuntador*tam + n_sobrantes);
+                                else
+                                    btmp = Arrays.copyOfRange(file, apuntador*tam, apuntador*tam + tam);
+                                outStream.writeInt(apuntador);              // Número de paquete
+                                outStream.writeInt(TOTAL_PAQUETES);         // Total de paquetes
+                                outStream.writeInt(fileNameBytes.length);   // Tamaño del nombre del archivo
+                                outStream.write(fileNameBytes);             // Nombre del archivo
+                                outStream.writeInt(btmp.length);            // Tamaño de los datos
+                                outStream.write(btmp);                      // Datos
+                                outStream.flush();
+
+                                // Enviar paquete
+                                byte[] bufferOut = byteOut.toByteArray();
+                                DatagramPacket packet_bajar = new DatagramPacket(bufferOut, bufferOut.length, packet.getAddress(), packet.getPort());
+                                socket.send(packet_bajar);
+                                byteOut.reset();
+                                    apuntador++;
+                            }
+
+                            try {
+                                // Recibir el ACK
+                                socket.setSoTimeout(TIEMPO_ESPERA_ENVIAR);
+                                byte[] buffer_ACK = new byte[TAM_BUFFER];
+                                DatagramPacket packet_bajar = new DatagramPacket(buffer_ACK, buffer_ACK.length);
+                                socket.receive(packet_bajar);
+                                byteIn = new ByteArrayInputStream(packet_bajar.getData());
+                                inStream = new DataInputStream(byteIn);
+                                
+                                int n = inStream.readInt();
+                                System.out.println("\033[95mACK: \033[0m"+n);
+                                System.out.flush();
+                                if (n >= start)
+                                    start = n + 1; // Mover el inicio de la ventana
+
+                            } catch (SocketTimeoutException e) {
+                                System.out.println("\033[31mTIMEOUT: retransmitiendo desde el paquete " + start + "\033[0m");
+                                System.out.flush();
+                                apuntador = start; // Empezar a transmitir los paquetes desde el inicio de la ventana
+                            }
+                        }
+                        System.out.println("\033[94mEnvío exitoso del archivo "+nombreArchivo+".\033[0m");
+                        System.out.flush();
+
+                        socket.setSoTimeout(TIEMPO_ESPERA_RECIBIR);
+                        continue;
+                    }
+
+                    // ------------------------------------------------------------------------
+                    //                              SUBIR ARCHIVO
                     // ------------------------------------------------------------------------
                     int n = accion;                             // Número de paquete
                     if(totalPackets == -1)
@@ -252,9 +338,8 @@ public class Servidor {
                     if(nombreArchivo == "")
                         nombreArchivo = new String(bufferIn);   // Cadena de los bytes
                     int tam = inStream.readInt();               // Tamaño de los datos
-                    bufferIn = new byte[tam];                   // datos en bytes
-                    inStream.read(bufferIn);
-                    //String cadena = new String(bufferIn);       // Cadena de los bytes
+                    bufferIn = new byte[tam];
+                    inStream.read(bufferIn);                    // datos en bytes
                     
                     //Path path = Paths.get(dir_server+nombreArchivo);
                     Path path = dir_actual.resolve(nombreArchivo);

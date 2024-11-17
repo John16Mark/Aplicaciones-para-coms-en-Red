@@ -131,7 +131,7 @@ class Window extends JFrame {
 
         btnBajar.addActionListener(new ActionListener() { 
             public void actionPerformed(ActionEvent e) { 
-                //Cliente.subirArchivo(socket, direccion);
+                Cliente.bajarArchivo(socket, direccion);
             } 
         });
 
