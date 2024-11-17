@@ -60,13 +60,13 @@ public class Cliente {
             
             // Enviar SYN
             String SYN = "SYN";
-            byte[] SYNBytes = SYN.getBytes();
-            outStream.writeInt(SYNBytes.length);    // Tamaño cadena SYN
-            outStream.write(SYNBytes);              // SYN
+            byte[] SYN_bytes = SYN.getBytes();
+            outStream.writeInt(SYN_bytes.length);    // Tamaño cadena SYN
+            outStream.write(SYN_bytes);              // SYN
             outStream.flush();
             
-            byte[] bufferSYN = byteOut.toByteArray();
-            DatagramPacket packet = new DatagramPacket(bufferSYN, bufferSYN.length, direccion, PORT);
+            byte[] buffer_SYN = byteOut.toByteArray();
+            DatagramPacket packet = new DatagramPacket(buffer_SYN, buffer_SYN.length, direccion, PORT);
             System.out.println("\033[93mEnviando "+SYN+"\033[0m");
             socket.send(packet);
             byteOut.reset();
@@ -79,9 +79,9 @@ public class Cliente {
             inStream = new DataInputStream(byteIn);
 
             int SYNTAM = inStream.readInt();
-            bufferSYN = new byte[SYNTAM];
-            inStream.read(bufferSYN);
-            SYN = new String(bufferSYN);
+            buffer_SYN = new byte[SYNTAM];
+            inStream.read(buffer_SYN);
+            SYN = new String(buffer_SYN);
             if(!SYN.equals("SYN - ACK")) {
                 outStream.close();
                 socket.close();
@@ -91,13 +91,13 @@ public class Cliente {
 
             // Enviar ACK
             SYN = SYN.substring(6, 9);
-            SYNBytes = SYN.getBytes();
-            outStream.writeInt(SYNBytes.length);    // Tamaño cadena SYN
-            outStream.write(SYNBytes);              // SYN
+            SYN_bytes = SYN.getBytes();
+            outStream.writeInt(SYN_bytes.length);    // Tamaño cadena SYN
+            outStream.write(SYN_bytes);              // SYN
             outStream.flush();
             
-            bufferSYN = byteOut.toByteArray();
-            packet = new DatagramPacket(bufferSYN, bufferSYN.length, direccion, PORT);
+            buffer_SYN = byteOut.toByteArray();
+            packet = new DatagramPacket(buffer_SYN, buffer_SYN.length, direccion, PORT);
             System.out.println("\033[93mEnviando "+SYN+"\033[0m");
             socket.send(packet);
             byteOut.reset();
@@ -143,8 +143,6 @@ public class Cliente {
                 }
             }
             });
-            //outStream.close();
-            //socket.close();
         } catch(Exception e) {
             e.printStackTrace();
         }
@@ -375,7 +373,6 @@ public class Cliente {
                         // Está en el try para que no mande el acuse si es que no se escribió bien el archivo
                         if(expectedPacket == n) {
                             outStream.writeInt(n);
-                            System.out.println("n: "+n);
                             byte[] bufferOut = byteOut.toByteArray();
                             DatagramPacket ACK = new DatagramPacket(bufferOut, bufferOut.length, packet.getAddress(), packet.getPort());
                             socket.send(ACK);
@@ -416,6 +413,7 @@ public class Cliente {
             e.printStackTrace();
         }
     }
+
     // ------------------------------------------------------------------------
     //                              SUBIR ARCHIVO
     // ------------------------------------------------------------------------
@@ -477,8 +475,6 @@ public class Cliente {
                     // Enviar paquete
                     byte[] bufferOut = byteOut.toByteArray();
                     packet = new DatagramPacket(bufferOut, bufferOut.length, direccion, PORT);
-                    /*System.out.println("Enviando el paquete "+apuntador+" con el mensaje: ");
-                    System.out.println(new String(btmp));*/
                     socket.send(packet);
                     byteOut.reset();
                         apuntador++;
