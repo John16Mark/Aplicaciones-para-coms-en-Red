@@ -173,6 +173,8 @@ public class Cliente {
                 File selectedFile = jfc.getSelectedFile();
                 rutaArchivo = selectedFile.getAbsolutePath();
                 nombreArchivo = selectedFile.getName();
+            } else {
+                return;
             }
             hiloConexion.interrupt();
 
@@ -237,10 +239,11 @@ public class Cliente {
             System.out.println("\033[94mEnvío exitoso del archivo "+nombreArchivo+".\033[0m");
             System.out.flush();
 
+            // Recibir contenido del directorio
+            actualizarDirectorio(socket);
+
             hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA));
             hiloConexion.start();
-
-            
 
         } catch(Exception e) {
             e.printStackTrace();
@@ -342,6 +345,8 @@ public class Cliente {
             DatagramPacket packet;
 
             String path = JOptionPane.showInputDialog("Nombre del nuevo directorio");
+            if(path == null)
+                return;
             hiloConexion.interrupt();
 
             // Enviar paquete con datos para crear directorio

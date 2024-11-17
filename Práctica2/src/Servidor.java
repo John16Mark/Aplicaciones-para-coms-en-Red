@@ -256,7 +256,8 @@ public class Servidor {
                     inStream.read(bufferIn);
                     //String cadena = new String(bufferIn);       // Cadena de los bytes
                     
-                    Path path = Paths.get(dir_server+nombreArchivo);
+                    //Path path = Paths.get(dir_server+nombreArchivo);
+                    Path path = dir_actual.resolve(nombreArchivo);
                     if (expectedPacket == 0) {
                         Files.write(path, new byte[0]);
                     }
@@ -287,11 +288,11 @@ public class Servidor {
                     if(expectedPacket == totalPackets) {
                         System.out.println("\033[94mRecibo exitoso del archivo "+nombreArchivo+".\033[0m");
                         System.out.flush();
+                        dir(dir_actual, packet.getAddress(), packet.getPort());
                         expectedPacket = 0;
                         //handshake = false;
                         totalPackets = -1;
                         nombreArchivo = "";
-
                     }
                 }
                 catch (SocketTimeoutException e) {

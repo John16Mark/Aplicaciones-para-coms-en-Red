@@ -7,6 +7,7 @@ import java.io.File;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import javax.swing.JButton;
 import javax.swing.JEditorPane;
@@ -172,6 +173,20 @@ class Window extends JFrame {
         if(!contenido.equals("")) {
             File file = new File("./img/folder.png");
             String parts[] = contenido.split("\\?");
+            // Ordenar si es carpeta o no
+            Arrays.sort(parts, (a, b) -> {
+                boolean conditionA = !(a.contains(".") && a.lastIndexOf('.') != a.length() - 1);
+                boolean conditionB = !(b.contains(".") && b.lastIndexOf('.') != b.length() - 1);
+
+                if (conditionA && !conditionB) {
+                    return -1;
+                } else if (!conditionA && conditionB) {
+                    return 1;
+                } else {
+                    return a.compareToIgnoreCase(b);
+                }
+            });
+
             int cont=0;
             for (String elemento : parts) {
                 html += "<tr style='width:100%;";
