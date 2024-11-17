@@ -301,7 +301,7 @@ public class Cliente {
 
             DatagramPacket packet;
 
-            String nombre = JOptionPane.showInputDialog("Nombre del archivo/directorio");
+            String nombre = JOptionPane.showInputDialog("Nombre del archivo");
             if(nombre == null)
                 return;
             JFileChooser f = new JFileChooser();
@@ -405,6 +405,51 @@ public class Cliente {
                 }
             }
             socket.setSoTimeout(0);
+
+            // Continuar Standby
+            hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA_ENVIAR));
+            hiloConexion.start();
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    //                             RENOMBRAR ARCHIVO
+    // ------------------------------------------------------------------------
+    static void renombrarArchivo(DatagramSocket socket, InetAddress direccion) {
+        try {
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+            DatagramPacket packet;
+
+            String original = JOptionPane.showInputDialog("Nombre del archivo original");
+            if(original == null)
+                return;
+            String nuevo = JOptionPane.showInputDialog("Nuevo nombre");
+            if(nuevo == null)
+                return;
+            hiloConexion.interrupt();
+
+            // Enviar paquete con datos para crear directorio
+            outStream.writeInt(-7);
+            byte[] original_bytes = original.getBytes();
+            outStream.writeInt(original_bytes.length);
+            outStream.write(original_bytes);
+            byte[] nuevo_bytes = nuevo.getBytes();
+            outStream.writeInt(nuevo_bytes.length);
+            outStream.write(nuevo_bytes);
+
+            byte[] buffer = byteOut.toByteArray();
+            packet = new DatagramPacket(buffer, buffer.length, direccion, PORT);
+            socket.send(packet);
+            System.out.println("\033[92mEnviando renombrar archivo \033[0m\n" + original);
+            System.out.println(nuevo);
+            System.out.flush();
+
+            // Recibir contenido del directorio
+            actualizarDirectorio(socket);
 
             // Continuar Standby
             hiloConexion = new Thread(new HiloConexion(socket, direccion, PORT, -1, TIEMPO_ESPERA_ENVIAR));

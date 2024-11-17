@@ -325,6 +325,40 @@ public class Servidor {
                     }
 
                     // ------------------------------------------------------------------------
+                    //                             RENOMBRAR ARCHIVO
+                    // ------------------------------------------------------------------------
+                    else if(accion == -7) {
+                        System.out.println("\033[92mRecibido código para renombrar archivo\033[0m");
+                        System.out.flush();
+
+                        int tam_original = inStream.readInt();              // Tamaño del nombre original
+                        byte[] original_bytes = new byte[tam_original];
+                        inStream.read(original_bytes);                      // Nombre original
+                        String original = new String(original_bytes);
+                        int tam_nuevo = inStream.readInt();                 // Tamaño del nuevo nombre
+                        byte[] nuevo_bytes = new byte[tam_nuevo];
+                        inStream.read(nuevo_bytes);                         // Nuevo nombre
+                        String nuevo = new String(nuevo_bytes);
+ 
+                        //String path = new String(buffer_path).trim();
+                        System.out.println(original);
+                        System.out.println(nuevo);
+
+                        try {
+                            Path originalPath = dir_actual.resolve(original);
+                            Path nuevoPath = dir_actual.resolve(nuevo);
+                    
+                            Files.move(originalPath, nuevoPath);
+                            System.out.println("\033[94mArchivo renombrado con éxito.\033[0m");
+                        } catch (IOException e) {
+                            System.err.println("\033[91mError al renombrar el archivo: " + e.getMessage() + "\033[0m");
+                        }
+
+                        dir(dir_actual, packet.getAddress(), packet.getPort());
+                        continue;
+                    }
+
+                    // ------------------------------------------------------------------------
                     //                              SUBIR ARCHIVO
                     // ------------------------------------------------------------------------
                     int n = accion;                             // Número de paquete

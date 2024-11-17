@@ -36,14 +36,15 @@ class Window extends JFrame {
     private JButton btnSubir;
     private JButton btnBajar;
     private JButton btnCrear;
+    private JButton btnRenombrar;
     private JButton btnBorrar;
 
     private JButton btnAvanzar;
     private JButton btnRegresar;
     private JLabel directorio;
 
-    final static int WIDTH = 800;
-    final static int HEIGHT = 500;
+    final static int WIDTH = 1000;
+    final static int HEIGHT = 600;
 
     final static Dimension tamBtn = new Dimension(250, 150);
 
@@ -80,6 +81,8 @@ class Window extends JFrame {
 		panelBtnIzquierda.add(btnBajar);
 		btnCrear = new JButton("Crear carpeta");
 		panelBtnIzquierda.add(btnCrear);
+        btnRenombrar = new JButton("Renombrar archivo");
+		panelBtnIzquierda.add(btnRenombrar);
 		
         // Botones derecha
 		panelBtnDerecha = new JPanel();
@@ -138,6 +141,12 @@ class Window extends JFrame {
         btnCrear.addActionListener(new ActionListener() { 
             public void actionPerformed(ActionEvent e) { 
                 Cliente.crearDirectorio(socket, direccion);
+            } 
+        });
+
+        btnRenombrar.addActionListener(new ActionListener() { 
+            public void actionPerformed(ActionEvent e) { 
+                Cliente.renombrarArchivo(socket, direccion);
             } 
         });
 
