@@ -16,11 +16,10 @@ public class Servidor extends Thread {
 
   private void asignarPuerto(String nombreUsuario) {
     int puerto = puertoBase + usuarios.size();
-    InetSocketAddress direccion = new InetSocketAddress("127.0.0.1", puerto);
-    usuariosSockets.put(nombreUsuario, null)
-    usuariosSockets.put(nombreUsuario, direccion);
+    // InetSocketAddress direccion = new InetSocketAddress("127.0.0.1", puerto);
+    usuariosSockets.put(nombreUsuario, null);
+    // usuariosSockets.put(nombreUsuario, direccion);
     System.out.println("Puerto asignado a " + nombreUsuario + ": " + puerto);
-
   }
 
   private void enviarListaUsuarios(MulticastSocket socket, InetAddress grupo) throws IOException {
@@ -69,7 +68,7 @@ public class Servidor extends Thread {
         switch (mensaje.getTipo()) {
           case "inicio":  // Se manda lista de usuarios conectados -- no funciona ;-;
             usuarios.add(mensaje.getUsuario());
-            asignarPuerto(mensaje.getUsuario());
+            // asignarPuerto(mensaje.getUsuario());
             // String direccionIP = recv.getAddress().getHostAddress();
             // System.out.println("direccion " + direccionIP);
             System.out.println("Usuario conectado: " + mensaje.getUsuario());

@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Scanner;
+import com.google.gson.Gson;
 
 public class Cliente extends Thread {
     public static final String direccionMulticast = "230.1.1.1";
@@ -12,9 +13,9 @@ public class Cliente extends Thread {
     private String nombreUsuario;
     private int puertoCliente;
 
-    public Cliente (String nombreUsuario, int puertoCliente) {
+    public Cliente (String nombreUsuario) {
         this.nombreUsuario = nombreUsuario;
-        this.puertoCliente = puertoCliente;
+        // this.puertoCliente = puertoCliente;
     }
     
     private boolean esJsonValido(String json) {
@@ -40,7 +41,7 @@ public class Cliente extends Thread {
             // El cliente se une al servidor
             socket.joinGroup(grupo);
             System.out.println("\033[92mCliente unido al grupo multicast.\033[0m");
-            DatagramSocket socketPrivado = new DatagramSocket(puertoCliente);
+            // DatagramSocket socketPrivado = new DatagramSocket(puertoCliente);
             // Enviar mensaje de inicio
             Mensaje mensajeInicio = new Mensaje("inicio", nombreUsuario, "", null);
             String jsonInicio = mensajeInicio.toJson();
@@ -236,6 +237,7 @@ public class Cliente extends Thread {
         Scanner scanner = new Scanner(System.in);
         System.out.print("Introduce tu nombre de usuario: ");
         String nombreUsuario = scanner.nextLine().trim();
+        // new Cliente(nombreUsuario, ).start();;
         new Cliente(nombreUsuario).start();
         // scanner.close();
     }
