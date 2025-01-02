@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;" />
+<link rel=�shortcut icon� href=�favicon.ico� type=�image/x-icon� />
+<title>Formulario de registro</title></head>
+<body style="background-color: #ffffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <div style="width: 100%; text-align: center;">
+    <h2>Ejemplo sencillo de un formulario</h2>
+    <h3>Formulario de Registro</h3>
+    <img src="ESCOM.png" width="240px"/>
+  </div>
+
+  <hr>
+  
+  <!-- form ACTION="mailto:direcci�n_de_email" METHOD="POST" ENCTYPE="TEXT/PLAIN" -->
+  <div style="width: 100%; align-self: center;">
+    <form ACTION="http://127.0.0.1:8000" METHOD="GET">
+    <div style="
+    width: 60%;
+    margin: 0 auto;
+    padding: 10px;
+    position: relative;
+    background-color: #2589e6;" >
+      <h3>Sea tan amable de rellenar el siguiente formulario.</h3>
+      <br>
+      Nombre:
+      <br>
+      <input type="text" NAME="Apellido">
+      <br>
+      Dirección: <br>
+      <input type="text" NAME="Direccion">
+      <br>
+      Teléfono: <br>
+      <input type="text" NAME="Telefono">
+      <br>
+      Comentarios:<br>
+      <textarea NAME="comentario" ROWS="7" COLS="40">
+      </textarea>
+
+      <div style="
+      width: 100%;
+      margin: 0 auto;
+      padding: 10px;
+      position: relative;">
+        <input type="submit" VALUE="Enviar datos">
+        <input type="reset" VALUE="Borrar datos">
+      </div>
+    </div>
+    </form>
+  </div>
+</body>
+</html>
