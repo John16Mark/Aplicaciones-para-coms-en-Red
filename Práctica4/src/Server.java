@@ -2,6 +2,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Date;
@@ -49,7 +50,7 @@ class Server {
                         POST(stringTokenizer);
                         break;
                     case "PUT":
-                        PUT(stringTokenizer);
+                        PUT(stringTokenizer, line);
                         break;
                     case "DELETE":
                         DELETE(line);
@@ -58,7 +59,7 @@ class Server {
                         HEAD();
                         break;
                     default:
-                        enviarError();
+                        enviarError("501 Not Implemented", "Método no manejado");
                         break;
                 }
 
@@ -116,11 +117,35 @@ class Server {
             socket.close();
         }
 
-        public void PUT(StringTokenizer stringTokenizer) throws Exception {
+        public void PUT(StringTokenizer stringTokenizer, String primeraLinea) throws Exception {
+            String directorio = "data";
+            File dir = new File(directorio);
+            if(!dir.exists())
+                dir.mkdirs();
+            
+            String[] tokens = primeraLinea.split(" ");
+            String uri = tokens[1];
+            String nombreArchivo = uri.substring(1);
+
+            System.out.println("\033[92mnombreArchivo:\033[0m " + nombreArchivo);
+            if(nombreArchivo.isEmpty()) {
+                enviarError("400 Bad Request", "Nombre de archivo no especificado");
+                return;
+            }
+
+            File archivo = new File(directorio + File.separator + nombreArchivo);
+
             StringBuilder contenido = new StringBuilder();
             while(stringTokenizer.hasMoreTokens())
                 contenido.append(stringTokenizer.nextToken()).append("\n");
-            System.out.println("\033[94mMétodo PUT\n\033[96mContenido:\033[0m "+contenido);
+            try (FileOutputStream fos = new FileOutputStream(archivo)) {
+                fos.write(contenido.toString().getBytes());
+                fos.flush();
+            }
+            System.out.println("Archivo guardado: " + archivo.getAbsolutePath());
+
+
+                System.out.println("\033[94mMétodo PUT\n\033[96mContenido:\033[0m "+contenido);
             String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nRecurso creado o actualizado correctamente.\n";
             outStream.write(respuesta.getBytes());
             outStream.flush();
@@ -140,8 +165,10 @@ class Server {
             outStream.flush();
         }
 
-        public void enviarError() throws Exception{
-            outStream.write("HTTP/1.0 501 Not Implemented\r\n".getBytes());
+        public void enviarError(String codigo, String mensaje) throws Exception{
+            String respuesta = "HTTP/1.0 "+ codigo +"\n" +
+                "Content-Type: text/plain\r\n".getBytes();
+            outStream.write(respuesta.getBytes());
             outStream.flush();
             outStream.close();
         }
