@@ -187,9 +187,6 @@ class Server {
             System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
             if(nombreArchivo.isEmpty()) {
                 enviarError("400 Bad Request", "Nombre de archivo no especificado");
-                outStream.flush();
-                outStream.close();
-                socket.close();
                 return;
             }
 
@@ -197,9 +194,6 @@ class Server {
             System.out.println("\033[92mContenido:\033[0m "+contenido);
             if(!parametros.isEmpty()) {
                 enviarError("400 Bad Request", "No se admiten argumentos en la solicitud PUT.");
-                outStream.flush();
-                outStream.close();
-                socket.close();
                 return;
             }
             File archivo = new File(directorio + File.separator + nombreArchivo);
@@ -234,9 +228,6 @@ class Server {
             System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
             if (nombreArchivo.isEmpty()) {
                 enviarError("400 Bad Request", "Nombre de archivo no especificado.");
-                outStream.flush();
-                outStream.close();
-                socket.close();
                 return;
             }
             File archivo = new File(directorio + File.separator + nombreArchivo);
@@ -244,9 +235,6 @@ class Server {
             // Si hay parámetros dar error
             if(uriPartes.length != 1) {
                 enviarError("400 Bad Request", "No se admiten argumentos en la solicitud DELETE.");
-                outStream.flush();
-                outStream.close();
-                socket.close();
                 return;
             }
 
@@ -289,6 +277,9 @@ class Server {
             System.out.print("\033[31m"+respuesta);
             System.out.println(sep);
             outStream.write(respuesta.getBytes());
+            outStream.flush();
+            outStream.close();
+            socket.close();
         }
 
         public void getArchivo(String line) {
