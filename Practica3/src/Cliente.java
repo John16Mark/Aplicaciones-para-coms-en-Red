@@ -3,6 +3,9 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Scanner;
 import com.google.gson.Gson;
 
@@ -10,12 +13,12 @@ public class Cliente extends Thread {
     public static final String direccionMulticast = "230.1.1.1";
     public static final int puertoMulticast = 4000;
     public static final int dgram_buf_len = 1024;
-    private String nombreUsuario;
+    private static String nombreUsuario;
     private int puertoCliente;
 
-    public Cliente (String nombreUsuario) {
+    public Cliente (String nombreUsuario, int puertoCliente) {
         this.nombreUsuario = nombreUsuario;
-        // this.puertoCliente = puertoCliente;
+        this.puertoCliente = puertoCliente;
     }
     
     private boolean esJsonValido(String json) {
@@ -26,6 +29,33 @@ public class Cliente extends Thread {
             return false;
         }
     }
+    
+    private InetSocketAddress obtenerDireccionDestinatario(String nombreUsuario, String destinatario, InetAddress grupo, MulticastSocket socket) {
+        try {
+            // Crear mensaje para solicitar dirección del destinatario
+            Mensaje mensaje = new Mensaje("obtenerDireccion", nombreUsuario, "", destinatario);
+            String jsonMensaje = mensaje.toJson();
+            byte[] mensajeBytes = jsonMensaje.getBytes(StandardCharsets.UTF_8);
+
+            DatagramPacket paqueteMensaje = new DatagramPacket(mensajeBytes, mensajeBytes.length, grupo, puertoMulticast);
+            socket.send(paqueteMensaje);
+    
+            // Recibir respuesta del servidor
+            byte[] respuestaBytes = new byte[dgram_buf_len];
+            DatagramPacket paqueteRespuesta = new DatagramPacket(respuestaBytes, respuestaBytes.length);
+            socket.receive(paqueteRespuesta);
+    
+            // Parsear la respuesta
+            String respuesta = new String(paqueteRespuesta.getData(), 0, paqueteRespuesta.getLength(), StandardCharsets.UTF_8);
+
+                int puerto = Integer.parseInt(respuesta);
+                return new InetSocketAddress("230.1.1.1", puerto);
+            
+        } catch (IOException e) {
+            System.err.println("Error al obtener dirección del destinatario: " + e.getMessage());
+        }
+        return null;
+    }   
 
     public void run () {
         InetAddress grupo = null;
@@ -60,34 +90,34 @@ public class Cliente extends Thread {
                         String jsonMensaje = new String(recv.getData(), 0, recv.getLength(), StandardCharsets.UTF_8);
                         if (esJsonValido(jsonMensaje)) {
                             Mensaje mensaje = Mensaje.fromJson(jsonMensaje);
-                        // String mensaje = new String(recv.getData(), 0, recv.getLength());
-                        // System.out.print("\033[93mMensaje recibido: \033[0m");
-                        switch (mensaje.getTipo()) {
-                            case "inicio":
-                                System.out.println("Mensaje recibido: " + mensaje.toJson());
-                                System.out.println("\033[92mInicio de sesión de " + mensaje.getUsuario() + "\033[0m");
-                                System.out.println("\033[92mLista de usuarios activos: \033[0m"+ mensaje.getContenido());
-                                if (!mensaje.getContenido().isEmpty()) {
-                                    String[] usuariosActivos = mensaje.getContenido().split(",");
-                                    for (String usuario : usuariosActivos) {
-                                        System.out.println("- " + usuario.trim());
+                            // String mensaje = new String(recv.getData(), 0, recv.getLength());
+                            // System.out.print("\033[93mMensaje recibido: \033[0m");
+                            switch (mensaje.getTipo()) {
+                                case "inicio":
+                                    System.out.println("Mensaje recibido: " + mensaje.toJson());
+                                    System.out.println("\033[92mInicio de sesión de " + mensaje.getUsuario() + "\033[0m");
+                                    System.out.println("\033[92mLista de usuarios activos: \033[0m"+ mensaje.getContenido());
+                                    if (!mensaje.getContenido().isEmpty()) {
+                                        String[] usuariosActivos = mensaje.getContenido().split(",");
+                                        for (String usuario : usuariosActivos) {
+                                            System.out.println("- " + usuario.trim());
+                                        }
+                                    } else {
+                                        System.out.println("No hay usuarios activos.");
                                     }
-                                } else {
-                                    System.out.println("No hay usuarios activos.");
-                                }
-                                break;
-                            case "mensaje":
-                                System.out.println("\033[93mMensaje de " + mensaje.getUsuario() + ":\033[0m " + mensaje.getContenido());
-                                break;
-                            case "privado":
-                                System.out.println("\033[93mMensaje privado de " + mensaje.getUsuario() + ":\033[0m " + mensaje.getContenido());
-                                break;
-                            case "salir":
-                                System.out.println("\033[94m" + mensaje.getUsuario() + " salió del servidor\033[0m");
-                                break;
-                            default:
-                                break;
-                        }
+                                    break;
+                                case "mensaje":
+                                    System.out.println("\033[93mMensaje de " + mensaje.getUsuario() + ":\033[0m " + mensaje.getContenido());
+                                    break;
+                                case "privado":
+                                    System.out.println("\033[93mMensaje privado de " + mensaje.getUsuario() + ":\033[0m " + mensaje.getContenido());
+                                    break;
+                                case "salir":
+                                    System.out.println("\033[94m" + mensaje.getUsuario() + " salió del servidor\033[0m");
+                                    break;
+                                default:
+                                    break;
+                            }
                         }else {
                             // Si no es JSON, asumimos que son datos binarios (como un fragmento de archivo)
                             System.out.println("Fragmento recibido: " + recv.getLength() + " bytes.");
@@ -145,24 +175,32 @@ public class Cliente extends Thread {
                         continuar = false;
                         break;
 
-                    case "3":   // Enviar mensaje privado -- todavía no queda
+                    case "3":   // Enviar mensaje privado
                         System.out.println("¿A quién deseas mandarle un mensaje privado?");
                         String destinatario = scanner.nextLine().trim();
                         System.out.println("Escribe tu mensaje:");
                         String contenido = scanner.nextLine().trim();
-
+                    
+                        // Crear el mensaje privado
                         Mensaje mensajePrivado = new Mensaje("privado", nombreUsuario, contenido, destinatario);
                         String jsonMensajePrivado = mensajePrivado.toJson();
                         byte[] mensajePrivadoBytes = jsonMensajePrivado.getBytes(StandardCharsets.UTF_8);
-
+                    
                         if (mensajePrivadoBytes.length > Cliente.dgram_buf_len) {
                             System.err.println("El mensaje es muy largo para enviarlo");
                             continue;
                         }
-
-                        DatagramPacket paqueteMensajePrivado = new DatagramPacket(mensajePrivadoBytes, mensajePrivadoBytes.length, grupo, puertoMulticast);
-                        socket.send(paqueteMensajePrivado);
+                    
+                        InetSocketAddress direccionDestinatario = obtenerDireccionDestinatario(nombreUsuario, destinatario, grupo, socket);
+                        if (direccionDestinatario != null) {
+                            DatagramPacket paqueteMensajePrivado = new DatagramPacket(mensajePrivadoBytes, mensajePrivadoBytes.length, direccionDestinatario.getAddress(), 5003);
+                            socket.send(paqueteMensajePrivado);
+                            System.out.println("Mensaje privado enviado a " + destinatario);
+                        } else {
+                            System.out.println("El destinatario no está disponible.");
+                        }
                         break;
+                    
 
                     case "4":   // Enviar archivo
                         System.out.println("Selecciona el archivo que deseas enviar:");
@@ -238,7 +276,7 @@ public class Cliente extends Thread {
         System.out.print("Introduce tu nombre de usuario: ");
         String nombreUsuario = scanner.nextLine().trim();
         // new Cliente(nombreUsuario, ).start();;
-        new Cliente(nombreUsuario).start();
+        new Cliente(nombreUsuario,0).start();
         // scanner.close();
     }
 }
