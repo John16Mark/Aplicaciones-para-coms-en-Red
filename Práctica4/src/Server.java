@@ -17,6 +17,7 @@ class Server {
         DataOutputStream outStream;
         DataInputStream inStream;
         protected String nombreArchivo;
+        String directorio = "data";
 
         public Manejador(Socket _socket) throws Exception {
             this.socket = _socket;
@@ -53,7 +54,7 @@ class Server {
                         PUT(stringTokenizer, line);
                         break;
                     case "DELETE":
-                        DELETE(line);
+                        DELETE(line, stringTokenizer);
                         break;
                     case "HEAD":
                         HEAD();
@@ -118,34 +119,35 @@ class Server {
         }
 
         public void PUT(StringTokenizer stringTokenizer, String primeraLinea) throws Exception {
-            String directorio = "data";
+            System.out.println("\033[94mMétodo PUT\n");
             File dir = new File(directorio);
             if(!dir.exists())
                 dir.mkdirs();
             
+            // Obtener el nombre del archivo
             String[] tokens = primeraLinea.split(" ");
             String uri = tokens[1];
             String nombreArchivo = uri.substring(1);
-
             System.out.println("\033[92mnombreArchivo:\033[0m " + nombreArchivo);
             if(nombreArchivo.isEmpty()) {
                 enviarError("400 Bad Request", "Nombre de archivo no especificado");
                 return;
             }
 
-            File archivo = new File(directorio + File.separator + nombreArchivo);
-
+            // Obtener el contenido de la solicitud
             StringBuilder contenido = new StringBuilder();
             while(stringTokenizer.hasMoreTokens())
                 contenido.append(stringTokenizer.nextToken()).append("\n");
+            System.out.println("\033[96mContenido:\033[0m "+contenido);
+            File archivo = new File(directorio + File.separator + nombreArchivo);
+
             try (FileOutputStream fos = new FileOutputStream(archivo)) {
                 fos.write(contenido.toString().getBytes());
                 fos.flush();
             }
             System.out.println("Archivo guardado: " + archivo.getAbsolutePath());
 
-
-                System.out.println("\033[94mMétodo PUT\n\033[96mContenido:\033[0m "+contenido);
+            
             String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nRecurso creado o actualizado correctamente.\n";
             outStream.write(respuesta.getBytes());
             outStream.flush();
@@ -153,24 +155,58 @@ class Server {
             socket.close();
         }
 
-        public void DELETE(String line) throws Exception {
-            // TODO
+        public void DELETE(String line, StringTokenizer stringTokenizer) throws Exception {
+            System.out.println("\033[94mMétodo DELETE\n\033[0m");
+            File dir = new File(directorio);
+            if(!dir.exists())
+                dir.mkdirs();
+            
+            String[] tokens = line.split(" ");
+            String uri = tokens[1];
+            String nombreArchivo = uri.substring(1);
+            if (nombreArchivo.isEmpty()) {
+                enviarError("400 Bad Request", "Nombre de archivo no especificado.");
+                return;
+            }
+            System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
+            File archivo = new File(directorio + File.separator + nombreArchivo);
+
+            // Eliminar archivo
+            if (archivo.exists()) {
+                if (archivo.delete()) {
+                    System.out.println("\033[96mArchivo eliminado: " + archivo.getAbsolutePath() + "\033[0m\n");
+                    String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nArchivo eliminado: " + nombreArchivo + "\n";
+                    outStream.write(respuesta.getBytes());
+                } else {
+                    enviarError("500 Internal Server Error", "No se pudo eliminar el archivo.");
+                }
+            } else {
+                enviarError("404 Not Found", "El archivo no existe.");
+            }
+
+            outStream.flush();
+            outStream.close();
+            socket.close();
         }
 
         public void HEAD() throws Exception {
+            System.out.println("\033[94mMétodo HEAD\033[0m");
             String respuesta = "HTTP/1.0 200 OK\n" +
                        "Content-Type: text/html\n" +
                        "Content-Length: 0\n\n";
+            System.out.println("\033[96mRespuesta:\n\033[0m"+respuesta);
             outStream.write(respuesta.getBytes());
             outStream.flush();
         }
 
         public void enviarError(String codigo, String mensaje) throws Exception{
             String respuesta = "HTTP/1.0 "+ codigo +"\n" +
-                "Content-Type: text/plain\r\n".getBytes();
+                "Content-Type: text/plain\n\n" + mensaje + "\n";
+            System.out.println("\033[91m"+respuesta+"\033[0m");
             outStream.write(respuesta.getBytes());
             outStream.flush();
             outStream.close();
+            socket.close();
         }
 
         public void getArchivo(String line) {
