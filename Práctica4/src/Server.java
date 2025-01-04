@@ -5,7 +5,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URLDecoder;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.StringTokenizer;
 
 class Server {
@@ -18,6 +21,7 @@ class Server {
         DataInputStream inStream;
         protected String nombreArchivo;
         String directorio = "data";
+        String sep = "\033[0m------------------------------------";
 
         public Manejador(Socket _socket) throws Exception {
             this.socket = _socket;
@@ -27,40 +31,87 @@ class Server {
             try {
                 outStream = new DataOutputStream(socket.getOutputStream());
                 inStream = new DataInputStream(socket.getInputStream());
+                System.err.println();
                 byte[] buffer = new byte[50000];
                 int size = inStream.read(buffer);
                 if (size == -1) {
-                    System.out.println("\033[91mConexión cerrada por el cliente o sin datos recibidos.\033[0m");
+                    System.out.println("\033[91m\nConexión cerrada por el cliente o sin datos recibidos.\033[0m");
                     socket.close();
                     return;
                 }
-                String peticion = new String(buffer, 0, size);
-                System.out.println("\033[93mCliente conectado desde:\033[0m "+socket.getInetAddress());
-                System.out.println("\033[93mPor el puerto:\033[0m "+socket.getPort());
-                System.out.println("\033[93mDatos:\033[0m "+peticion+"\r\n");
 
+                // Obtener toda la petición HTTP
+                String peticion = new String(buffer, 0, size);
+                System.out.println(sep+"\033[92m\nCliente conectado\033[0m");
+                System.out.println("\033[93mIP:\033[0m "+socket.getInetAddress());
+                System.out.println("\033[93mPuerto:\033[0m "+socket.getPort());
+                System.out.println("\033[93mSolicitud:\033[0m\n"+peticion);
+
+                // Obtener la primera línea y el método
                 StringTokenizer stringTokenizer = new StringTokenizer(peticion, "\n");
-                String line = stringTokenizer.nextToken();
-                String metodo = line.split(" ")[0].toUpperCase();
+                String primeraLinea = stringTokenizer.nextToken();
+                String metodo = primeraLinea.split(" ")[0].toUpperCase();
+
+                // Separar las cabeceras y el contenido.
+                StringBuilder cabeceras = new StringBuilder();
+                StringBuilder contenido = new StringBuilder();
+                boolean esContenido = false;
+                while(stringTokenizer.hasMoreTokens()) {
+                    String linea = stringTokenizer.nextToken();
+                    if(linea.isEmpty() || linea.equals("\r")) {
+                        esContenido = true;
+                        continue;
+                    }
+                    if(esContenido)
+                        contenido.append(linea + "\n");
+                    else
+                        cabeceras.append(linea + "\n");
+                }
+
+                // Obtener parámetros.
+                String[] primeraLineaPartes = primeraLinea.split(" ");
+                String uri = primeraLineaPartes[1];
+                Map<String, String> parametros = new HashMap<>();
+                if (uri.contains("?")) {
+                    String[] uriPartes = uri.split("\\?", 2);
+                    uri = uriPartes[0];
+                    String queryString = uriPartes[1];
+
+                    // Parsear los parámetros
+                    String[] pares = queryString.split("&");
+                    for (String par : pares) {
+                        String[] keyValue = par.split("=", 2);
+                        String clave = URLDecoder.decode(keyValue[0], "UTF-8");
+                        String valor = keyValue.length > 1 ? URLDecoder.decode(keyValue[1], "UTF-8") : "";
+                        parametros.put(clave, valor);
+                    }
+                }
+
+                System.out.print("\033[93mCabeceras:\033[0m\n"+cabeceras);
+                System.out.print("\033[93mContenido:\033[0m\n"+contenido);
+                System.out.print("\033[93mParámetros:\033[0m\n"+parametros+"\n");
 
                 switch(metodo) {
                     case "GET":
-                        GET(line);
+                        GET(primeraLinea);
                         break;
                     case "POST":
                         POST(stringTokenizer);
                         break;
                     case "PUT":
-                        PUT(stringTokenizer, line);
+                        PUT(primeraLinea, contenido, parametros);
                         break;
                     case "DELETE":
-                        DELETE(line, stringTokenizer);
+                        DELETE(primeraLinea, stringTokenizer);
                         break;
                     case "HEAD":
                         HEAD();
                         break;
                     default:
                         enviarError("501 Not Implemented", "Método no manejado");
+                        outStream.flush();
+                        outStream.close();
+                        socket.close();
                         break;
                 }
 
@@ -70,7 +121,7 @@ class Server {
         }
 
         public void GET(String line) throws Exception{
-            System.out.println("\033[94mMétodo GET\n\033[96mContenido:\033[0m ");
+            System.out.println("\033[94m\nMétodo GET\n\033[96mContenido:\033[0m ");
             if(line.indexOf("?") == -1) {
                 getArchivo(line);
                 if(nombreArchivo.compareTo("") == 0) {
@@ -107,10 +158,11 @@ class Server {
         }
 
         public void POST(StringTokenizer stringTokenizer) throws Exception {
+            System.out.println("\033[94m\nMétodo POST\033[0m");
             StringBuilder contenido = new StringBuilder();
             while(stringTokenizer.hasMoreTokens())
                 contenido.append(stringTokenizer.nextToken()).append("\n");
-            System.out.println("\033[94mMétodo POST\n\033[96mContenido:\033[0m "+contenido);
+            System.out.println("\033[96mContenido:\033[0m "+contenido);
             String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nDatos recibidos correctamente.\n";
             outStream.write(respuesta.getBytes());
             outStream.flush();
@@ -118,8 +170,8 @@ class Server {
             socket.close();
         }
 
-        public void PUT(StringTokenizer stringTokenizer, String primeraLinea) throws Exception {
-            System.out.println("\033[94mMétodo PUT\n");
+        public void PUT(String primeraLinea, StringBuilder contenido, Map<String,String> parametros) throws Exception {
+            System.out.println("\033[94m\nMétodo PUT");
             File dir = new File(directorio);
             if(!dir.exists())
                 dir.mkdirs();
@@ -127,28 +179,36 @@ class Server {
             // Obtener el nombre del archivo
             String[] tokens = primeraLinea.split(" ");
             String uri = tokens[1];
-            String nombreArchivo = uri.substring(1);
-            System.out.println("\033[92mnombreArchivo:\033[0m " + nombreArchivo);
+            uri = uri.substring(1);
+            String[] uriPartes = uri.split("\\?", 2);
+            String nombreArchivo = uriPartes[0];
+            System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
             if(nombreArchivo.isEmpty()) {
                 enviarError("400 Bad Request", "Nombre de archivo no especificado");
                 return;
             }
 
-            // Obtener el contenido de la solicitud
-            StringBuilder contenido = new StringBuilder();
-            while(stringTokenizer.hasMoreTokens())
-                contenido.append(stringTokenizer.nextToken()).append("\n");
-            System.out.println("\033[96mContenido:\033[0m "+contenido);
+            // Crear el archivo
+            System.out.println("\033[92mContenido:\033[0m "+contenido);
+            if(!parametros.isEmpty()) {
+                enviarError("400 Bad Request", "No se admiten argumentos en la solicitud PUT.");
+                outStream.flush();
+                outStream.close();
+                socket.close();
+                return;
+            }
             File archivo = new File(directorio + File.separator + nombreArchivo);
-
             try (FileOutputStream fos = new FileOutputStream(archivo)) {
                 fos.write(contenido.toString().getBytes());
                 fos.flush();
             }
-            System.out.println("Archivo guardado: " + archivo.getAbsolutePath());
+            System.out.println("\033[96m\nArchivo guardado:\033[0m\n" + archivo.getAbsolutePath());
 
-            
+            // Respuesta
             String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nRecurso creado o actualizado correctamente.\n";
+            System.out.println("\033[93m\nRespuesta:");
+            System.out.print("\033[32m"+respuesta);
+            System.out.println(sep);
             outStream.write(respuesta.getBytes());
             outStream.flush();
             outStream.close();
@@ -156,16 +216,20 @@ class Server {
         }
 
         public void DELETE(String line, StringTokenizer stringTokenizer) throws Exception {
-            System.out.println("\033[94mMétodo DELETE\n\033[0m");
+            System.out.println("\033[94m\nMétodo DELETE\033[0m");
             File dir = new File(directorio);
             if(!dir.exists())
                 dir.mkdirs();
             
+            // Obtener el nombre del archivo
             String[] tokens = line.split(" ");
             String uri = tokens[1];
             String nombreArchivo = uri.substring(1);
             if (nombreArchivo.isEmpty()) {
                 enviarError("400 Bad Request", "Nombre de archivo no especificado.");
+                outStream.flush();
+                outStream.close();
+                socket.close();
                 return;
             }
             System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
@@ -176,6 +240,9 @@ class Server {
                 if (archivo.delete()) {
                     System.out.println("\033[96mArchivo eliminado: " + archivo.getAbsolutePath() + "\033[0m\n");
                     String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nArchivo eliminado: " + nombreArchivo + "\n";
+                    System.out.println("\033[93m\nRespuesta:");
+                    System.out.print("\033[32m"+respuesta);
+                    System.out.println(sep);
                     outStream.write(respuesta.getBytes());
                 } else {
                     enviarError("500 Internal Server Error", "No se pudo eliminar el archivo.");
@@ -190,7 +257,7 @@ class Server {
         }
 
         public void HEAD() throws Exception {
-            System.out.println("\033[94mMétodo HEAD\033[0m");
+            System.out.println("\033[94m\nMétodo HEAD\033[0m");
             String respuesta = "HTTP/1.0 200 OK\n" +
                        "Content-Type: text/html\n" +
                        "Content-Length: 0\n\n";
@@ -202,11 +269,10 @@ class Server {
         public void enviarError(String codigo, String mensaje) throws Exception{
             String respuesta = "HTTP/1.0 "+ codigo +"\n" +
                 "Content-Type: text/plain\n\n" + mensaje + "\n";
-            System.out.println("\033[91m"+respuesta+"\033[0m");
+            System.out.println("\033[93m\nRespuesta:");
+            System.out.print("\033[31m"+respuesta);
+            System.out.println(sep);
             outStream.write(respuesta.getBytes());
-            outStream.flush();
-            outStream.close();
-            socket.close();
         }
 
         public void getArchivo(String line) {
