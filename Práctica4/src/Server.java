@@ -96,15 +96,19 @@ class Server {
                         GET(primeraLinea);
                         break;
                     case "POST":
+                        System.out.println("\033[94m\nMétodo POST\033[0m");
                         POST(stringTokenizer);
                         break;
                     case "PUT":
+                        System.out.println("\033[94m\nMétodo PUT\033[0m");
                         PUT(primeraLinea, contenido, parametros);
                         break;
                     case "DELETE":
+                        System.out.println("\033[94m\nMétodo DELETE\033[0m");
                         DELETE(primeraLinea, stringTokenizer);
                         break;
                     case "HEAD":
+                        System.out.println("\033[94m\nMétodo HEAD\033[0m");
                         HEAD();
                         break;
                     default:
@@ -158,7 +162,6 @@ class Server {
         }
 
         public void POST(StringTokenizer stringTokenizer) throws Exception {
-            System.out.println("\033[94m\nMétodo POST\033[0m");
             StringBuilder contenido = new StringBuilder();
             while(stringTokenizer.hasMoreTokens())
                 contenido.append(stringTokenizer.nextToken()).append("\n");
@@ -171,7 +174,6 @@ class Server {
         }
 
         public void PUT(String primeraLinea, StringBuilder contenido, Map<String,String> parametros) throws Exception {
-            System.out.println("\033[94m\nMétodo PUT");
             File dir = new File(directorio);
             if(!dir.exists())
                 dir.mkdirs();
@@ -185,6 +187,9 @@ class Server {
             System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
             if(nombreArchivo.isEmpty()) {
                 enviarError("400 Bad Request", "Nombre de archivo no especificado");
+                outStream.flush();
+                outStream.close();
+                socket.close();
                 return;
             }
 
@@ -215,16 +220,18 @@ class Server {
             socket.close();
         }
 
-        public void DELETE(String line, StringTokenizer stringTokenizer) throws Exception {
-            System.out.println("\033[94m\nMétodo DELETE\033[0m");
+        public void DELETE(String primeraLinea, StringTokenizer stringTokenizer) throws Exception {
             File dir = new File(directorio);
             if(!dir.exists())
                 dir.mkdirs();
             
             // Obtener el nombre del archivo
-            String[] tokens = line.split(" ");
+            String[] tokens = primeraLinea.split(" ");
             String uri = tokens[1];
-            String nombreArchivo = uri.substring(1);
+            uri = uri.substring(1);
+            String[] uriPartes = uri.split("\\?", 2);
+            String nombreArchivo = uriPartes[0];
+            System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
             if (nombreArchivo.isEmpty()) {
                 enviarError("400 Bad Request", "Nombre de archivo no especificado.");
                 outStream.flush();
@@ -232,8 +239,16 @@ class Server {
                 socket.close();
                 return;
             }
-            System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
             File archivo = new File(directorio + File.separator + nombreArchivo);
+
+            // Si hay parámetros dar error
+            if(uriPartes.length != 1) {
+                enviarError("400 Bad Request", "No se admiten argumentos en la solicitud DELETE.");
+                outStream.flush();
+                outStream.close();
+                socket.close();
+                return;
+            }
 
             // Eliminar archivo
             if (archivo.exists()) {
@@ -257,11 +272,12 @@ class Server {
         }
 
         public void HEAD() throws Exception {
-            System.out.println("\033[94m\nMétodo HEAD\033[0m");
             String respuesta = "HTTP/1.0 200 OK\n" +
                        "Content-Type: text/html\n" +
                        "Content-Length: 0\n\n";
-            System.out.println("\033[96mRespuesta:\n\033[0m"+respuesta);
+            System.out.println("\033[93m\nRespuesta:");
+            System.out.print("\033[32m"+respuesta);
+            System.out.println(sep);
             outStream.write(respuesta.getBytes());
             outStream.flush();
         }
