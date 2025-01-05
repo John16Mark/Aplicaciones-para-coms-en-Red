@@ -28,6 +28,8 @@ class Server {
         String directorio = "data";
         String sep = "\033[0m------------------------------------";
 
+        boolean POST_json = true;
+
         public Manejador(Socket _socket) throws Exception {
             this.socket = _socket;
         }
@@ -57,29 +59,14 @@ class Server {
                 String primeraLinea = stringTokenizer.nextToken();
                 String metodo = primeraLinea.split(" ")[0].toUpperCase();
 
-                // Separar las cabeceras y el contenido.
-                cabeceras = new StringBuilder();
-                contenido = new StringBuilder();
-                boolean esContenido = false;
-                while(stringTokenizer.hasMoreTokens()) {
-                    String linea = stringTokenizer.nextToken();
-                    if(linea.isEmpty() || linea.equals("\r")) {
-                        esContenido = true;
-                        continue;
-                    }
-                    if(esContenido)
-                        contenido.append(linea + "\n");
-                    else
-                        cabeceras.append(linea + "\n");
-                }
-
                 // Obtener parámetros.
                 String[] primeraLineaPartes = primeraLinea.split(" ");
                 String uri = primeraLineaPartes[1];
+                nombreArchivo = uri.substring(1);
                 parametros = new HashMap<>();
                 if (uri.contains("?")) {
                     String[] uriPartes = uri.split("\\?", 2);
-                    uri = uriPartes[0];
+                    nombreArchivo = uriPartes[0].substring(1);
                     String queryString = uriPartes[1];
 
                     // Separar los parámetros del nombre
@@ -92,9 +79,30 @@ class Server {
                     }
                 }
 
-                System.out.print("\033[93mCabeceras:\033[0m\n"+cabeceras);
-                System.out.print("\033[93mContenido:\033[0m\n"+contenido);
+                // Separar las cabeceras y el contenido.
+                cabeceras = new StringBuilder();
+                contenido = new StringBuilder();
+                boolean esContenido = false;
+                while(stringTokenizer.hasMoreTokens()) {
+                    String linea = stringTokenizer.nextToken();
+                    if(linea.isEmpty() || linea.equals("\r")) {
+                        esContenido = true;
+                        continue;
+                    }
+                    if(esContenido) {
+                        contenido.append(linea);
+                        if(stringTokenizer.hasMoreTokens()) {
+                            contenido.append("\n");
+                        }
+                    }
+                    else
+                        cabeceras.append(linea + "\n");
+                }
+
+                System.out.print("\033[93mURI:\033[0m\n"+nombreArchivo+"\n");
                 System.out.print("\033[93mParámetros:\033[0m\n"+parametros+"\n");
+                System.out.print("\033[93mCabeceras:\033[0m\n"+cabeceras);
+                System.out.print("\033[93mContenido:\033[0m\n"+contenido+"\n");
 
                 switch(metodo) {
                     case "GET":
@@ -107,7 +115,7 @@ class Server {
                         break;
                     case "PUT":
                         System.out.println("\033[94m\nMétodo PUT\033[0m");
-                        PUT(primeraLinea, contenido, parametros);
+                        PUT(primeraLinea);
                         break;
                     case "DELETE":
                         System.out.println("\033[94m\nMétodo DELETE\033[0m");
@@ -131,8 +139,8 @@ class Server {
         }
 
         public void GET(String line) throws Exception{
+            // Si no recibo argumentos
             if(line.indexOf("?") == -1) {
-                getArchivo(line);
                 if(nombreArchivo.compareTo("") == 0) {
                     sendArchivo("index.html");
                 } else {
@@ -140,22 +148,26 @@ class Server {
                     sendArchivo("./data/"+nombreArchivo);
                 }
             } else if (line.toUpperCase().startsWith("GET")) {
-                System.out.println("\033[93mParámetros:\033[0m " + parametros);
-
                 // Formato de parámetros
                 String parametrosString = "";
+                String parametrosHtml = "";
                 for (Map.Entry<String, String> entry : parametros.entrySet()) {
-                    parametrosString += "<b>" + entry.getKey() + "</b> = " + entry.getValue() + "<br>\n";
+                    parametrosString += "\033[35m" + entry.getKey() + "\033[95m=\033[0m" + entry.getValue() + "\n";
+                    parametrosHtml += "<b>" + entry.getKey() + "</b> = " + entry.getValue() + "<br>\n";
                 }
+
+                System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
+                System.out.print("\033[92mParámetros:\033[0m\n" + parametrosString);
 
                 // Generar la respuesta.
                 StringBuffer respuesta = new StringBuffer();
                 respuesta.append("HTTP/1.0 200 OK \n");
+                respuesta.append("Server: Juan y Paola Server/1.0\n");
                 String fecha = "Date: " + new Date()+" \n";
                 respuesta.append(fecha);
                 String tipo_mime = "Content-Type: text/html \n\n";
                 respuesta.append(tipo_mime);
-                respuesta.append("<html><head><title>SERVIDOR WEB</title></head>\n");
+                respuesta.append("<html><head><title>SERVIDOR WEB - RESPUESTA GET</title></head>\n");
                 respuesta.append("<body style=\"background-color: #ffffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\"> " +
                 "<div style=\"width: 100%; align-self: center; text-align: center;\"><h1>Parametros Obtenidos..</h1>\n");
                 respuesta.append("<div style=\"\r\n" + //
@@ -163,10 +175,10 @@ class Server {
                                 "margin: 0 auto;\r\n" + //
                                 "padding: 10px;\r\n" + //
                                 "position: relative;\r\n" + //
-                                "background-color: #2589e6;\" >" + parametrosString + "");
-                respuesta.append("</div></body></html>\n\n");
+                                "background-color: #2589e6;\" >" + parametrosHtml + "");
+                respuesta.append("</div></body></html>");
                 System.out.println("\033[93m\nRespuesta:");
-                System.out.print("\033[32m"+respuesta);
+                System.out.println("\033[32m"+respuesta);
                 System.out.println(sep);
                 outStream.write(respuesta.toString().getBytes());
                 outStream.flush();
@@ -176,13 +188,70 @@ class Server {
         }
 
         public void POST(StringTokenizer stringTokenizer) throws Exception {
-            StringBuilder contenido = new StringBuilder();
-            while(stringTokenizer.hasMoreTokens())
-                contenido.append(stringTokenizer.nextToken()).append("\n");
-            System.out.println("\033[96mContenido:\033[0m "+contenido);
-            String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nDatos recibidos correctamente.\n";
+            System.out.println("\033[92mNombre del archivo:\033[0m "+nombreArchivo);
+            System.out.println("\033[92mContenido:\033[0m\n"+contenido);
+            
+            // Separar los datos
+            String[] pares = contenido.toString().split("&");
+            Map<String, String> datos = new HashMap<>();
+            for (String par : pares) {
+                String[] keyValue = par.split("=", 2);
+                String clave = URLDecoder.decode(keyValue[0], "UTF-8");
+                String valor = keyValue.length > 1 ? URLDecoder.decode(keyValue[1], "UTF-8") : "";
+                datos.put(clave, valor);
+            }
+
+            // Formatear los datos
+            String datosString = "";
+            String datosHtml = "";
+            for (Map.Entry<String, String> entry : datos.entrySet()) {
+                datosString += "\033[35m" + entry.getKey() + "\033[95m=\033[0m" + entry.getValue() + "\n";
+                datosHtml += "<b>" + entry.getKey() + "</b> = " + entry.getValue() + "<br>\n";
+            }
+            System.out.print("\033[92mDatos:\033[0m\n"+datosString);
+            
+            // Construir el JSON de respuesta
+            StringBuilder jsonBuilder = new StringBuilder();
+            jsonBuilder.append("{\n  \"status\": \"success\",\n  \"received_data\": {\n");
+            int count = 0;
+            for (Map.Entry<String, String> entry : datos.entrySet()) {
+                jsonBuilder.append("    \"")
+                        .append(entry.getKey())
+                        .append("\": \"")
+                        .append(entry.getValue())
+                        .append("\"");
+                if (++count < datos.size()) {
+                    jsonBuilder.append(",\n");
+                } else {
+                    jsonBuilder.append("\n");
+                }
+            }
+            jsonBuilder.append("  }\n}\n");
+            String jsonResponse = jsonBuilder.toString();
+
+            // Respuesta (podemos mostrarla como json o como html)
+            String respuesta = "HTTP/1.0 200 OK\n";
+            respuesta += "Server: Juan y Paola Server/1.0\n" +
+                "Date: " + new Date()+" \n";
+            if(POST_json) {
+                respuesta += "Content-Type: application/json\n\n";
+                respuesta += jsonResponse;
+            } else {
+                respuesta += "Content-Type: text/html\n\n";
+                respuesta += "<html><head><title>SERVIDOR WEB - RESPUESTA POST</title></head>\n";
+                respuesta += "<body style=\"background-color: #ffffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\"> " +
+                "<div style=\"width: 100%; align-self: center; text-align: center;\"><h1>Datos recibidos..</h1>\n";
+                respuesta += "<div style=\"\r\n" + //
+                                "width: 60%;\r\n" + //
+                                "margin: 0 auto;\r\n" + //
+                                "padding: 10px;\r\n" + //
+                                "position: relative;\r\n" + //
+                                "background-color: #2589e6;\" >" + datosHtml + "";
+                respuesta += "</div></body></html>\n\n";
+            }
+            
             System.out.println("\033[93m\nRespuesta:");
-            System.out.print("\033[31m"+respuesta);
+            System.out.print("\033[32m"+respuesta);
             System.out.println(sep);
             outStream.write(respuesta.getBytes());
             outStream.flush();
@@ -190,17 +259,11 @@ class Server {
             socket.close();
         }
 
-        public void PUT(String primeraLinea, StringBuilder contenido, Map<String,String> parametros) throws Exception {
+        public void PUT(String primeraLinea) throws Exception {
             File dir = new File(directorio);
             if(!dir.exists())
                 dir.mkdirs();
             
-            // Obtener el nombre del archivo
-            String[] tokens = primeraLinea.split(" ");
-            String uri = tokens[1];
-            uri = uri.substring(1);
-            String[] uriPartes = uri.split("\\?", 2);
-            String nombreArchivo = uriPartes[0];
             System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
             if(nombreArchivo.isEmpty()) {
                 enviarError("400 Bad Request", "Nombre de archivo no especificado");
@@ -208,7 +271,7 @@ class Server {
             }
 
             // Crear el archivo
-            System.out.println("\033[92mContenido:\033[0m "+contenido);
+            System.out.println("\033[92mContenido:\033[0m\n"+contenido);
             if(!parametros.isEmpty()) {
                 enviarError("400 Bad Request", "No se admiten argumentos en la solicitud PUT.");
                 return;
@@ -221,7 +284,10 @@ class Server {
             System.out.println("\033[96m\nArchivo guardado:\033[0m\n" + archivo.getAbsolutePath());
 
             // Respuesta
-            String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nRecurso creado o actualizado correctamente.\n";
+            String respuesta = "HTTP/1.0 200 OK\n" + 
+                "Server: Juan y Paola Server/1.0\n" +
+                "Date: " + new Date()+" \n" +
+                "Content-Type: text/plain\n\nRecurso creado o actualizado correctamente.\n";
             System.out.println("\033[93m\nRespuesta:");
             System.out.print("\033[32m"+respuesta+"\033[0m");
             System.out.println(sep);
@@ -236,12 +302,6 @@ class Server {
             if(!dir.exists())
                 dir.mkdirs();
             
-            // Obtener el nombre del archivo
-            String[] tokens = primeraLinea.split(" ");
-            String uri = tokens[1];
-            uri = uri.substring(1);
-            String[] uriPartes = uri.split("\\?", 2);
-            String nombreArchivo = uriPartes[0];
             System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
             if (nombreArchivo.isEmpty()) {
                 enviarError("400 Bad Request", "Nombre de archivo no especificado.");
@@ -250,7 +310,7 @@ class Server {
             File archivo = new File(directorio + File.separator + nombreArchivo);
 
             // Si hay parámetros dar error
-            if(uriPartes.length != 1) {
+            if(!parametros.isEmpty()) {
                 enviarError("400 Bad Request", "No se admiten argumentos en la solicitud DELETE.");
                 return;
             }
@@ -259,7 +319,10 @@ class Server {
             if (archivo.exists()) {
                 if (archivo.delete()) {
                     System.out.println("\033[96mArchivo eliminado: " + archivo.getAbsolutePath() + "\033[0m\n");
-                    String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nArchivo eliminado: " + nombreArchivo + "\n";
+                    String respuesta = "HTTP/1.0 200 OK\n" +
+                       "Server: Juan y Paola Server/1.0\n" +
+                       "Date: " + new Date()+" \n" +
+                       "Content-Type: text/plain\n\nArchivo eliminado: " + nombreArchivo + "\n";
                     System.out.println("\033[93m\nRespuesta:");
                     System.out.print("\033[32m"+respuesta+"\033[0m");
                     System.out.println(sep);
@@ -277,14 +340,41 @@ class Server {
         }
 
         public void HEAD() throws Exception {
+            long tamano = 0;
+            
+            // Obtener el archivo
+            File archivo = new File("./index.html");
+            if(!nombreArchivo.equals("")) {
+                archivo = new File(directorio + File.separator + nombreArchivo);
+            }
+            if(!archivo.exists()) {
+                enviarError("404 Not Found", "");
+                outStream.flush();
+                outStream.close();
+                socket.close();
+                return;
+            }
+
+            // Obtener el tipo MIME del archivo
+            String mimeType = java.nio.file.Files.probeContentType(archivo.toPath());
+            if (mimeType == null) {
+                mimeType = "application/octet-stream";
+            }
+
+            tamano = archivo.length();
+
             String respuesta = "HTTP/1.0 200 OK\n" +
-                       "Content-Type: text/html\n" +
-                       "Content-Length: 0\n\n";
+                       "Server: Juan y Paola Server/1.0\n" +
+                       "Date: " + new Date()+" \n" +
+                       "Content-Type: " + mimeType + "\n" +
+                       "Content-Length: "+ tamano + "\n\n";
             System.out.println("\033[93m\nRespuesta:");
             System.out.print("\033[32m"+respuesta+"\033[0m");
             System.out.println(sep);
             outStream.write(respuesta.getBytes());
             outStream.flush();
+            outStream.close();
+            socket.close();
         }
 /*
         public void enviarSuccess(String codigo, String mensaje) throws Exception{
@@ -301,6 +391,8 @@ class Server {
 
         public void enviarError(String codigo, String mensaje) throws Exception{
             String respuesta = "HTTP/1.0 "+ codigo +"\n" +
+                "Server: Juan y Paola Server/1.0\n" +
+                "Date: " + new Date()+" \n" +
                 "Content-Type: text/plain\n\n" + mensaje + "\n";
             System.out.println("\033[93m\nRespuesta:");
             System.out.print("\033[31m"+respuesta);
