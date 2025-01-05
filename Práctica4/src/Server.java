@@ -19,7 +19,12 @@ class Server {
         protected Socket socket;
         DataOutputStream outStream;
         DataInputStream inStream;
+
         protected String nombreArchivo;
+        StringBuilder cabeceras;
+        StringBuilder contenido;
+        Map<String, String> parametros;
+
         String directorio = "data";
         String sep = "\033[0m------------------------------------";
 
@@ -53,8 +58,8 @@ class Server {
                 String metodo = primeraLinea.split(" ")[0].toUpperCase();
 
                 // Separar las cabeceras y el contenido.
-                StringBuilder cabeceras = new StringBuilder();
-                StringBuilder contenido = new StringBuilder();
+                cabeceras = new StringBuilder();
+                contenido = new StringBuilder();
                 boolean esContenido = false;
                 while(stringTokenizer.hasMoreTokens()) {
                     String linea = stringTokenizer.nextToken();
@@ -71,13 +76,13 @@ class Server {
                 // Obtener parámetros.
                 String[] primeraLineaPartes = primeraLinea.split(" ");
                 String uri = primeraLineaPartes[1];
-                Map<String, String> parametros = new HashMap<>();
+                parametros = new HashMap<>();
                 if (uri.contains("?")) {
                     String[] uriPartes = uri.split("\\?", 2);
                     uri = uriPartes[0];
                     String queryString = uriPartes[1];
 
-                    // Parsear los parámetros
+                    // Separar los parámetros del nombre
                     String[] pares = queryString.split("&");
                     for (String par : pares) {
                         String[] keyValue = par.split("=", 2);
@@ -93,6 +98,7 @@ class Server {
 
                 switch(metodo) {
                     case "GET":
+                        System.out.println("\033[94m\nMétodo GET\033[0m");
                         GET(primeraLinea);
                         break;
                     case "POST":
@@ -125,35 +131,43 @@ class Server {
         }
 
         public void GET(String line) throws Exception{
-            System.out.println("\033[94m\nMétodo GET\n\033[96mContenido:\033[0m ");
             if(line.indexOf("?") == -1) {
                 getArchivo(line);
                 if(nombreArchivo.compareTo("") == 0) {
-                    sendArchivo("index.html", outStream);
+                    sendArchivo("index.html");
                 } else {
-                    sendArchivo(nombreArchivo, outStream);
+                    System.out.println("\033[92mNombre del archivo:\033[0m " + nombreArchivo);
+                    sendArchivo("./data/"+nombreArchivo);
                 }
             } else if (line.toUpperCase().startsWith("GET")) {
-                StringTokenizer tokens = new StringTokenizer(line, "?");
-                String req_a = tokens.nextToken();
-                String req = tokens.nextToken();
-                System.out.println("\033[92mToken 1:\033[0m "+req_a);
-                System.out.println("\033[92mToken 2:\033[0m "+req);
-                String parametros = req.substring(0, req.indexOf(" "))+"\n";
-                System.out.println("\033[92mParámetros:\033[0m "+parametros);
-                
+                System.out.println("\033[93mParámetros:\033[0m " + parametros);
+
+                // Formato de parámetros
+                String parametrosString = "";
+                for (Map.Entry<String, String> entry : parametros.entrySet()) {
+                    parametrosString += "<b>" + entry.getKey() + "</b> = " + entry.getValue() + "<br>\n";
+                }
+
+                // Generar la respuesta.
                 StringBuffer respuesta = new StringBuffer();
-                respuesta.append("HTTP/1.0 200 Okay \n");
-                String fecha= "Date: " + new Date()+" \n";
+                respuesta.append("HTTP/1.0 200 OK \n");
+                String fecha = "Date: " + new Date()+" \n";
                 respuesta.append(fecha);
                 String tipo_mime = "Content-Type: text/html \n\n";
                 respuesta.append(tipo_mime);
                 respuesta.append("<html><head><title>SERVIDOR WEB</title></head>\n");
-                respuesta.append("<body bgcolor=\"#AACCFF\"><center><h1><br>Parametros Obtenidos..</br></h1><h3><b>\n");
-                respuesta.append(parametros);
-                respuesta.append("</b></h3>\n");
-                respuesta.append("</center></body></html>\n\n");
-                System.out.println("\033[92mRespuesta:\033[0m "+respuesta);
+                respuesta.append("<body style=\"background-color: #ffffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\"> " +
+                "<div style=\"width: 100%; align-self: center; text-align: center;\"><h1>Parametros Obtenidos..</h1>\n");
+                respuesta.append("<div style=\"\r\n" + //
+                                "width: 60%;\r\n" + //
+                                "margin: 0 auto;\r\n" + //
+                                "padding: 10px;\r\n" + //
+                                "position: relative;\r\n" + //
+                                "background-color: #2589e6;\" >" + parametrosString + "");
+                respuesta.append("</div></body></html>\n\n");
+                System.out.println("\033[93m\nRespuesta:");
+                System.out.print("\033[32m"+respuesta);
+                System.out.println(sep);
                 outStream.write(respuesta.toString().getBytes());
                 outStream.flush();
                 outStream.close();
@@ -167,6 +181,9 @@ class Server {
                 contenido.append(stringTokenizer.nextToken()).append("\n");
             System.out.println("\033[96mContenido:\033[0m "+contenido);
             String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nDatos recibidos correctamente.\n";
+            System.out.println("\033[93m\nRespuesta:");
+            System.out.print("\033[31m"+respuesta);
+            System.out.println(sep);
             outStream.write(respuesta.getBytes());
             outStream.flush();
             outStream.close();
@@ -206,7 +223,7 @@ class Server {
             // Respuesta
             String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nRecurso creado o actualizado correctamente.\n";
             System.out.println("\033[93m\nRespuesta:");
-            System.out.print("\033[32m"+respuesta);
+            System.out.print("\033[32m"+respuesta+"\033[0m");
             System.out.println(sep);
             outStream.write(respuesta.getBytes());
             outStream.flush();
@@ -244,7 +261,7 @@ class Server {
                     System.out.println("\033[96mArchivo eliminado: " + archivo.getAbsolutePath() + "\033[0m\n");
                     String respuesta = "HTTP/1.0 200 OK\nContent-Type: text/plain\n\nArchivo eliminado: " + nombreArchivo + "\n";
                     System.out.println("\033[93m\nRespuesta:");
-                    System.out.print("\033[32m"+respuesta);
+                    System.out.print("\033[32m"+respuesta+"\033[0m");
                     System.out.println(sep);
                     outStream.write(respuesta.getBytes());
                 } else {
@@ -264,11 +281,23 @@ class Server {
                        "Content-Type: text/html\n" +
                        "Content-Length: 0\n\n";
             System.out.println("\033[93m\nRespuesta:");
-            System.out.print("\033[32m"+respuesta);
+            System.out.print("\033[32m"+respuesta+"\033[0m");
             System.out.println(sep);
             outStream.write(respuesta.getBytes());
             outStream.flush();
         }
+/*
+        public void enviarSuccess(String codigo, String mensaje) throws Exception{
+            String respuesta = "HTTP/1.0 "+ codigo +"\n" +
+                "Content-Type: text/plain\n\n" + mensaje + "\n";
+            System.out.println("\033[93m\nRespuesta:");
+            System.out.print("\033[32m"+respuesta+"\033[0m");
+            System.out.println(sep);
+            outStream.write(respuesta.getBytes());
+            outStream.flush();
+            outStream.close();
+            socket.close();
+        }*/
 
         public void enviarError(String codigo, String mensaje) throws Exception{
             String respuesta = "HTTP/1.0 "+ codigo +"\n" +
@@ -292,39 +321,86 @@ class Server {
             }
         }
 
-        public void sendArchivo(String nombre, DataOutputStream out) {
+        public void sendArchivo(String nombre) {
             try {
-                DataInputStream inTemp = new DataInputStream(new FileInputStream(nombre));
+                File file = new File(nombre);
+                if(!file.exists()) {
+                    enviarError("404 Not Found", "El archivo no existe.");
+                    return;
+                }
+
+                // Obtener el tipo MIME del archivo
+                String mimeType = java.nio.file.Files.probeContentType(file.toPath());
+                if (mimeType == null) {
+                    mimeType = "application/octet-stream";
+                }
+
+                FileInputStream archivoStream = new FileInputStream(nombre);
+                DataInputStream inTemp = new DataInputStream(archivoStream);
                 byte[] buffer = new byte[1024];
                 int x = 0;
-                File file = new File(nombre);
                 long size = file.length();
                 long cont = 0;
 
+                // Crear la respuesta del servidor
                 String sb = "";
-                sb = sb+"HTTP/1.0 200 ok\n";
-                sb = sb +"Server: Axel Server/1.0\n";
-                sb = sb +"Date: " + new Date()+" \n";
-                sb = sb +"Content-Type: text/html \n";
-                sb = sb +"Content-Length: "+size+" \n";
-                sb = sb +"\n";
-                out.write(sb.getBytes());
-                out.flush();
+                sb = sb + "HTTP/1.0 200 OK\n";
+                sb = sb + "Server: Juan y Paola Server/1.0\n";
+                sb = sb + "Date: " + new Date()+" \n";
+                sb = sb + "Content-Type: " + mimeType + " \n";
+                sb = sb + "Content-Length: "+size+" \n";
+                sb = sb + "\n";
+                System.out.println("\033[93m\nRespuesta:");
+                System.out.print("\033[32m"+sb+"\033[0m");
+                outStream.write(sb.getBytes());
+                outStream.flush();
+
+                // Escribir el contenido del archivo
                 while(cont < size) {
                     x = inTemp.read(buffer);
-                    out.write(buffer,0, x);
-                    cont=cont+x;
-                    out.flush();
-                
-                
+                    outStream.write(buffer,0, x);
+                    cont = cont+x;
+                    outStream.flush();
                 }
-                //bos.flush();
+                System.out.println(sep);
                 inTemp.close();
-                out.close();
+                outStream.close();
+
             } catch(Exception e) {
                 System.out.println(e.getMessage());
             }
         }
+        /*
+        private String getMimeManual(File file) {
+            String extension = "";
+            String fileName = file.getName();
+            int lastDot = fileName.lastIndexOf('.');
+            if (lastDot > 0) {
+                extension = fileName.substring(lastDot + 1).toLowerCase();
+            }
+        
+            // Mapa de extensiones a tipos MIME
+            switch (extension) {
+                case "html": return "text/html";
+                case "htm": return "text/html";
+                case "txt": return "text/plain";
+                case "css": return "text/css";
+                case "js": return "application/javascript";
+                case "json": return "application/json";
+                case "xml": return "application/xml";
+                case "jpg": return "image/jpeg";
+                case "jpeg": return "image/jpeg";
+                case "png": return "image/png";
+                case "gif": return "image/gif";
+                case "svg": return "image/svg+xml";
+                case "ico": return "image/x-icon";
+                case "pdf": return "application/pdf";
+                case "zip": return "application/zip";
+                case "rar": return "application/x-rar-compressed";
+                default: return null; // Tipo desconocido
+            }
+        }
+        */
     }
 
     public Server() throws Exception {
