@@ -80,13 +80,11 @@ public class Client {
     
             System.out.println("\033[92mCliente unido al grupo " + grupo + " en el puerto " + puertoMulticast + ".\033[0m");
     
-            Mensaje mensajeInicio = new Mensaje("inicio", nombreUsuario, "Hola a todos", null);
+            Mensaje mensajeInicio = new Mensaje("inicioSesion", nombreUsuario, null, null);
             String jsonInicio = mensajeInicio.toJson();
             DatagramPacket paqueteInicio = new DatagramPacket(jsonInicio.getBytes(StandardCharsets.UTF_8), jsonInicio.length(), grupo, puertoMulticast);
             socket.send(paqueteInicio);
 
-            // new Thread(() -> recibirMensajes(socket)).start();
-    
         } catch (UnsupportedEncodingException e) {
             System.err.println("El encoding especificado no es compatible: " + e.getMessage());
         } catch (SocketException e) {
@@ -103,30 +101,31 @@ public class Client {
             try {
                 byte[] buf = new byte[dgram_buf_len];
                 DatagramPacket recv = new DatagramPacket(buf, buf.length);
-
                 socket.receive(recv);
-
                 String jsonMensaje = new String(recv.getData(), 0, recv.getLength(), StandardCharsets.UTF_8);
                 
                 if (esJsonValido(jsonMensaje)) {
                     Mensaje mensaje = Mensaje.fromJson(jsonMensaje);
 
                     switch (mensaje.getTipo()) {
-                        case "inicio":
+                        case "usuariosActivosInicio":
                             interfaz.mostrarMensaje(mensaje.getUsuario() + " se unió al chat");
                             interfaz.mostrarMensaje("Lista de usuarios activos: " + mensaje.getContenido()+ "\n");
+                            System.out.println("\033[92mLista de usuarios activos: \033[0m"+ mensaje.getContenido());
+                            break;
+                        
+                        case "usuariosActivosCierre":
+                            interfaz.mostrarMensaje(mensaje.getUsuario() + " salió del chat");
+                            interfaz.mostrarMensaje("Lista de usuarios activos: " + mensaje.getContenido()+ "\n");
+                            System.out.println("\033[92mLista de usuarios activos: \033[0m"+ mensaje.getContenido());
                             break;
 
-                        case "mensaje":
+                        case "mensajeGrupal":
                             interfaz.mostrarMensaje(mensaje.getUsuario() + ": " + mensaje.getContenido());
                             break;
 
-                        case "privado":
+                        case "mensajePrivado":
                             System.out.println("\033[93mMensaje privado de " + mensaje.getUsuario() + ":\033[0m " + mensaje.getContenido());
-                            break;
-
-                        case "salir":
-                            interfaz.mostrarMensaje(mensaje.getUsuario() + " salió del servidor");
                             break;
 
                         default:
@@ -143,12 +142,16 @@ public class Client {
         }
     }
 
+    /* ------------------------------------------------------------------------------------------------------
+     *                       
+     *                                          ENVIAR MENSAJE GRUPAL
+     * 
+     * ------------------------------------------------------------------------------------------------------  */
     public static void enviarMensajeGrupal(String nombreUsuario, String mensajeGrupal, MulticastSocket socket) {
         try {
-            Mensaje mensaje = new Mensaje("mensaje", nombreUsuario, mensajeGrupal, null);
+            Mensaje mensaje = new Mensaje("mensajeGrupal", nombreUsuario, mensajeGrupal, null);
             String jsonMensaje = mensaje.toJson();
             byte[] mensajeBytes = jsonMensaje.getBytes(StandardCharsets.UTF_8);
-
             DatagramPacket paqueteMensaje = new DatagramPacket(mensajeBytes, mensajeBytes.length, grupo, puertoMulticast);
             socket.send(paqueteMensaje);
         }catch (IOException e) {
@@ -156,12 +159,33 @@ public class Client {
         }
     }
 
+    /* ------------------------------------------------------------------------------------------------------
+     *                       
+     *                                          ENVIAR MENSAJE PRIVADO
+     * 
+     * ------------------------------------------------------------------------------------------------------  */
+    public static void enviarMensajePrivado(String nombreUsuario, String mensajeGrupal, MulticastSocket socket) {
+        try {
+            Mensaje mensaje = new Mensaje("mensajeGrupal", nombreUsuario, mensajeGrupal, null);
+            String jsonMensaje = mensaje.toJson();
+            byte[] mensajeBytes = jsonMensaje.getBytes(StandardCharsets.UTF_8);
+            DatagramPacket paqueteMensaje = new DatagramPacket(mensajeBytes, mensajeBytes.length, grupo, puertoMulticast);
+            socket.send(paqueteMensaje);
+        }catch (IOException e) {
+            System.err.println("Error al enviar mensaje: " + e.getMessage());
+        }
+    }
+
+    /* ------------------------------------------------------------------------------------------------------
+     *                       
+     *                                             CIERRE SESIÓN
+     * 
+     * ------------------------------------------------------------------------------------------------------  */
     public static void salirServidor(String nombreUsuario, MulticastSocket socket, InetAddress grupo) {
         try {
-            Mensaje mensaleSalir = new Mensaje("salir", nombreUsuario, null, null);
+            Mensaje mensaleSalir = new Mensaje("cierreSesion", nombreUsuario, null, null);
             String jsonSalir = mensaleSalir.toJson();
             DatagramPacket paqueteSalida = new DatagramPacket(jsonSalir.getBytes(StandardCharsets.UTF_8), jsonSalir.length(), grupo, puertoMulticast);
-            
             socket.send(paqueteSalida);
 
             socket.leaveGroup(grupo);

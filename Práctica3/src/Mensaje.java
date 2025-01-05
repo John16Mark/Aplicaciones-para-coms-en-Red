@@ -1,3 +1,5 @@
+import java.net.InetSocketAddress;
+
 import com.google.gson.Gson;
 
 public class Mensaje {

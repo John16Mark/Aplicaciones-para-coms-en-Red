@@ -127,7 +127,6 @@ class Interfaz extends JFrame {
                     Interfaz interfaz = new Interfaz(Client.nombreUsuario, Client.socket, Client.grupo);
                     new Thread(() -> Client.recibirMensajes(Client.socket, interfaz)).start();
                 });
-
             } else {
                 JOptionPane.showMessageDialog(ventanaInicio, "Por favor, ingresa un nombre de usuario válido.");
             }
