@@ -348,7 +348,7 @@ class Server {
                 archivo = new File(directorio + File.separator + nombreArchivo);
             }
             if(!archivo.exists()) {
-                enviarError("404 Not Found", "");
+                enviarError("404 Not Found", ""); // Da error si le pones un mensaje en el método HEAD
                 outStream.flush();
                 outStream.close();
                 socket.close();
