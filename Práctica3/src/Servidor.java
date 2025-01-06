@@ -11,7 +11,7 @@ public class Servidor extends Thread {
   public static int puertoMulticast = 4000;
   public static int dgram_buf_len = 1024;
   
-  private ArrayList<String> usuariosActivos;
+  public ArrayList<String> usuariosActivos;
   private Map<String, InetSocketAddress> usuariosSockets = new HashMap<>();
   
 

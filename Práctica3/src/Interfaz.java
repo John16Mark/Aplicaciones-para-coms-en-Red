@@ -76,16 +76,19 @@ class Interfaz extends JFrame {
         panelEnviarMensaje.add(btnEnviarMensaje, BorderLayout.EAST);
 
         btnSalir.addActionListener(e -> {
-            Client.salirServidor(Client.nombreUsuario, Client.socket, Client.grupo);
+            Client.salirServidor(Client.nombreUsuario, Client.socketMulticast, Client.grupo);
             dispose();
         });
         btnEnviarMensaje.addActionListener(e -> {
             String mensaje = textFieldMensaje.getText().trim();
             if (!mensaje.isEmpty()) {
-                Client.enviarMensajeGrupal(Client.nombreUsuario, mensaje, Client.socket);
+                Client.enviarMensajeGrupal(Client.nombreUsuario, mensaje, Client.socketMulticast);
                 textFieldMensaje.setText("");
             }
         });
+        // btnMensajePrivado.addActionListener(e -> {
+        //     ventanaSeleccionarUsuario();
+        // });
 
         setVisible(true);
     }
@@ -93,6 +96,35 @@ class Interfaz extends JFrame {
     public void mostrarMensaje(String mensaje) {
         SwingUtilities.invokeLater(() -> textAreaChat.append(mensaje + "\n"));
     }
+
+    // Trabajando en esta sección ...
+    // private void ventanaSeleccionarUsuario() {
+    //     JDialog dialog = new JDialog(this, "Seleccionar usuario", true);
+    //     dialog.setSize(300, 400);
+    //     dialog.setLayout(new BorderLayout());
+
+    //     // Lista de usuarios activos
+    //     JList<String> listaUsuarios = new JList<>();
+    //     JScrollPane scrollPane = new JScrollPane(listaUsuarios);
+    //     dialog.add(scrollPane, BorderLayout.CENTER);
+
+    //     JButton btnAceptar = new JButton("Aceptar");
+
+    //     btnAceptar.addActionListener(e -> {
+    //         String usuarioSeleccionado = listaUsuarios.getSelectedValue();
+    //         if (usuarioSeleccionado != null) {
+    //             JOptionPane.showMessageDialog(this, "Mensaje privado a: " + usuarioSeleccionado);
+    //             dialog.dispose();
+    //         } else {
+    //             JOptionPane.showMessageDialog(this, "Selecciona un usuario.");
+    //         }
+    //     });
+
+    //     dialog.add(btnAceptar, BorderLayout.SOUTH);
+
+    //     dialog.setLocationRelativeTo(this);
+    //     dialog.setVisible(true);
+    // }
 
     private static void ventanaInicio() {
         JFrame ventanaInicio = new JFrame("Inicio de Sesión");
@@ -124,8 +156,9 @@ class Interfaz extends JFrame {
                 
                 SwingUtilities.invokeLater(() -> {
                     ventanaInicio.dispose();
-                    Interfaz interfaz = new Interfaz(Client.nombreUsuario, Client.socket, Client.grupo);
-                    new Thread(() -> Client.recibirMensajes(Client.socket, interfaz)).start();
+                    Interfaz interfaz = new Interfaz(Client.nombreUsuario, Client.socketMulticast, Client.grupo);
+                    new Thread(() -> Client.recibirMensajesMulticast(Client.socketMulticast, interfaz)).start();
+                    new Thread(() -> Client.recibirMensajesUnicast(Client.socketUnicast, interfaz)).start();
                 });
             } else {
                 JOptionPane.showMessageDialog(ventanaInicio, "Por favor, ingresa un nombre de usuario válido.");
