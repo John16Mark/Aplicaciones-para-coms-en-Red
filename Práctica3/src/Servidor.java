@@ -101,11 +101,11 @@ public class Servidor extends Thread {
             // Obtener dirección del usuario solicitado
             String usuarioDestino = mensaje.getDestinatario(); 
             InetSocketAddress direccionDestino = usuariosSockets.get(usuarioDestino);
-            System.out.println("Puerto destino " + direccionDestino.getPort() + " direccion " + direccionDestino.getAddress());
+            System.out.println("\033[96mPuerto destino\033[0m " + direccionDestino.getPort() + " \033[96mdirección\033[0m " + direccionDestino.getAddress());
             // Obtener dirección del usuario solicitante
             String usuarioOrigen = mensaje.getUsuario(); 
             InetSocketAddress direccionOrigen = usuariosSockets.get(usuarioOrigen);
-            System.out.println("Puerto origen " + direccionOrigen.getPort() + " direccion " + direccionOrigen.getAddress());
+            System.out.println("\033[96mPuerto origen\033[0m " + direccionOrigen.getPort() + " \\033[96mdirección\\033[0m " + direccionOrigen.getAddress());
 
             String direccionPuerto = direccionDestino.getAddress() + ":" + direccionDestino.getPort();
             String mensajeConfirmacion = new Mensaje("mensajeConfirmacion", mensaje.getUsuario(), mensaje.getContenido(), direccionPuerto).toJson();
@@ -167,7 +167,7 @@ public class Servidor extends Thread {
   private void enviarListaUsuarios(String listaUsuarios, MulticastSocket socket, InetAddress grupo) throws IOException {
     DatagramPacket paqueteUsuarios = new DatagramPacket(listaUsuarios.getBytes(StandardCharsets.UTF_8), listaUsuarios.length(), grupo, puertoMulticast);
     socket.send(paqueteUsuarios);
-    System.out.println("Enviando lista de usuarios " + listaUsuarios);  
+    System.out.println("\033[93mEnviando lista de usuarios: \033[0m" + listaUsuarios);  
   }
 
   /* ------------------------------------------------------------------------------------------------------
@@ -179,6 +179,6 @@ public class Servidor extends Thread {
     int puerto = Integer.parseInt(mensaje.getContenido());
     InetSocketAddress direccion = new InetSocketAddress(dir, puerto);
     usuariosSockets.put(mensaje.getUsuario(), direccion);
-    System.out.println("Puerto del usuario " + mensaje.getUsuario() + ": " + direccion.getPort() + " con direccion " + direccion.getAddress());
+    System.out.println("\033[96mPuerto del usuario\033[0m " + mensaje.getUsuario() + "\033[96m:\033[0m " + direccion.getPort() + " \033[96mcon direccion\033[0m " + direccion.getAddress());
   }
 }

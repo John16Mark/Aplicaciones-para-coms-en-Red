@@ -28,6 +28,8 @@ class Interfaz extends JFrame {
     private JPanel panelEnviarMensaje;
     private JTextField textFieldMensaje;
 
+    private DefaultListModel<String> modeloUsuarios;
+
     public Interfaz(String nombreUsuario, MulticastSocket socket, InetAddress grupo) {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setBounds(100, 100, WIDTH, HEIGHT);
@@ -59,13 +61,40 @@ class Interfaz extends JFrame {
         btnSalir = new JButton("Salir de la sala");
 		panelBtnIzquierda.add(btnSalir);
 
+        // Panel principal
+        JSplitPane splitPane = new JSplitPane();
+        splitPane.setDividerLocation(600);
+        contentPane.add(splitPane, BorderLayout.CENTER);
+
         // Área para mostrar mensajes 
+        JPanel panelChat = new JPanel(new BorderLayout());
         textAreaChat = new JTextArea();
         textAreaChat.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(textAreaChat);
-        contentPane.add(scrollPane, BorderLayout.CENTER);
+        JScrollPane scrollPaneChat = new JScrollPane(textAreaChat);
+        panelChat.add(scrollPaneChat, BorderLayout.CENTER);
+        splitPane.setLeftComponent(panelChat);
 
-        // Envio de mensajes
+        // Área de usuarios activos
+        JPanel panelUsuarios = new JPanel(new BorderLayout());
+        JLabel lblUsuariosActivos = new JLabel("Usuarios activos");
+        lblUsuariosActivos.setHorizontalAlignment(SwingConstants.CENTER);
+        panelUsuarios.add(lblUsuariosActivos, BorderLayout.NORTH);
+
+        modeloUsuarios = new DefaultListModel<>();
+        for (String usuario: Client.listaUsuariosActivos) {
+            if (!usuario.equals(Client.nombreUsuario)) {
+                modeloUsuarios.addElement(usuario);
+            }
+        }
+
+        JList<String> listaUsuarios = new JList<>(modeloUsuarios);
+        listaUsuarios.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane scrollPane = new JScrollPane(listaUsuarios);
+        panelUsuarios.add(scrollPane, BorderLayout.CENTER);
+
+        splitPane.setRightComponent(panelUsuarios);
+
+        // Botón para el envío de mensajes
         panelEnviarMensaje = new JPanel();
         panelEnviarMensaje.setLayout(new BorderLayout());
         contentPane.add(panelEnviarMensaje, BorderLayout.SOUTH);
@@ -75,10 +104,17 @@ class Interfaz extends JFrame {
         JButton btnEnviarMensaje = new JButton("Enviar");
         panelEnviarMensaje.add(btnEnviarMensaje, BorderLayout.EAST);
 
+        // Acciones para los botones
+        /* ---------------------------------------------------------------------------------------
+          *                                  SALIR DEL SERVIDOR
+          * --------------------------------------------------------------------------------------- */
         btnSalir.addActionListener(e -> {
             Client.salirServidor(Client.nombreUsuario, Client.socketMulticast, Client.grupo);
             dispose();
         });
+        /* ---------------------------------------------------------------------------------------
+          *                               ENVIAR MENSAJE GRUPAL
+          * --------------------------------------------------------------------------------------- */
         btnEnviarMensaje.addActionListener(e -> {
             String mensaje = textFieldMensaje.getText().trim();
             if (!mensaje.isEmpty()) {
@@ -86,45 +122,36 @@ class Interfaz extends JFrame {
                 textFieldMensaje.setText("");
             }
         });
-        // btnMensajePrivado.addActionListener(e -> {
-        //     ventanaSeleccionarUsuario();
-        // });
+        /* ---------------------------------------------------------------------------------------
+          *                              ENVIAR MENSAJE PRIVADO
+          * --------------------------------------------------------------------------------------- */
+        btnMensajePrivado.addActionListener(e -> {
+            String mensaje = textFieldMensaje.getText().trim();
+            String usuarioSeleccionado = listaUsuarios.getSelectedValue();
+            if (usuarioSeleccionado == null) {
+                JOptionPane.showMessageDialog(this, "Selecciona un usuario para mandar un mensaje privado", "Error", JOptionPane.WARNING_MESSAGE);
+            }else if(!mensaje.isEmpty()){
+                Client.enviarMensajePrivado(Client.nombreUsuario, mensaje, usuarioSeleccionado, socket);
+                textFieldMensaje.setText("");
+                textAreaChat.append("Mensaje privado a " + usuarioSeleccionado + ": " + mensaje + "\n");
+            }
+        });
 
         setVisible(true);
+    }
+
+    public void actualizarListaUsuarios() {
+        modeloUsuarios.clear();
+        for (String usuario: Client.listaUsuariosActivos) {
+            if (!usuario.equals(Client.nombreUsuario)) {
+                modeloUsuarios.addElement(usuario);
+            }
+        }
     }
 
     public void mostrarMensaje(String mensaje) {
         SwingUtilities.invokeLater(() -> textAreaChat.append(mensaje + "\n"));
     }
-
-    // Trabajando en esta sección ...
-    // private void ventanaSeleccionarUsuario() {
-    //     JDialog dialog = new JDialog(this, "Seleccionar usuario", true);
-    //     dialog.setSize(300, 400);
-    //     dialog.setLayout(new BorderLayout());
-
-    //     // Lista de usuarios activos
-    //     JList<String> listaUsuarios = new JList<>();
-    //     JScrollPane scrollPane = new JScrollPane(listaUsuarios);
-    //     dialog.add(scrollPane, BorderLayout.CENTER);
-
-    //     JButton btnAceptar = new JButton("Aceptar");
-
-    //     btnAceptar.addActionListener(e -> {
-    //         String usuarioSeleccionado = listaUsuarios.getSelectedValue();
-    //         if (usuarioSeleccionado != null) {
-    //             JOptionPane.showMessageDialog(this, "Mensaje privado a: " + usuarioSeleccionado);
-    //             dialog.dispose();
-    //         } else {
-    //             JOptionPane.showMessageDialog(this, "Selecciona un usuario.");
-    //         }
-    //     });
-
-    //     dialog.add(btnAceptar, BorderLayout.SOUTH);
-
-    //     dialog.setLocationRelativeTo(this);
-    //     dialog.setVisible(true);
-    // }
 
     private static void ventanaInicio() {
         JFrame ventanaInicio = new JFrame("Inicio de Sesión");
