@@ -2,6 +2,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -128,6 +130,9 @@ public class ClienteNoBloqueante {
         }
     }
 
+    // ------------------------------------------------------------------------
+    //                            AVANZAR DIRECTORIO
+    // ------------------------------------------------------------------------
     static void avanzarDirectorio(DatagramChannel channel) {
         try {
             System.out.println("\n\033[95m -- AVANZAR DIRECTORIO --\033[0m");
@@ -156,6 +161,35 @@ public class ClienteNoBloqueante {
             System.out.println("\033[93mCódigo de instrucción: \033[0m"+(-2));
             System.out.println("\033[93mLongitud del directorio: \033[0m"+path_bytes.length);
             System.out.println("\033[93mNombre del directorio: \033[0m"+new String(path_bytes));
+
+            estado = Estado.RECIBIENDO_DIRECTORIO;
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    //                             REGRESAR DIRECTORIO
+    // ------------------------------------------------------------------------
+    static void regresarDirectorio(DatagramChannel channel) {
+        try {
+            System.out.println("\n\033[95m -- REGRESAR DIRECTORIO --\033[0m");
+
+            // Clases para enviar información
+            ByteBuffer buffer = ByteBuffer.allocate(TAM_BUFFER);
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+
+            // Enviar datos
+            outStream.writeInt(-3);
+            outStream.flush();
+            buffer.put(byteOut.toByteArray());
+            buffer.flip();
+            channel.write(buffer);
+            byteOut.reset();
+            
+            System.out.println("\033[94mContenido enviado:\033[0m");
+            System.out.println("\033[93mCódigo de instrucción: \033[0m"+(-3));
 
             estado = Estado.RECIBIENDO_DIRECTORIO;
         } catch(Exception e) {

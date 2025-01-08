@@ -161,7 +161,7 @@ class WindowNoBloqueante extends JFrame {
 
         btnRegresar.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                //ClienteNoBloqueante.regresarDirectorio(socket, direccion);
+                ClienteNoBloqueante.regresarDirectorio(channel);
             }
         });
         
