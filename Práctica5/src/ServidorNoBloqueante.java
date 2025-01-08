@@ -146,6 +146,11 @@ public class ServidorNoBloqueante {
 
                                 int instruccion = inStream.readInt();
                                 switch (instruccion) {
+                                case -2:
+                                    System.out.println("\033[92mRecibido código para avanzar directorio\033[0m");
+                                    System.out.flush();
+                                    avanzarDirectorio(inStream, cliente); 
+                                break;
                                 case -4:
                                     System.out.println("\033[92mRecibido código para crear directorio\033[0m");
                                     System.out.flush();
@@ -190,6 +195,33 @@ public class ServidorNoBloqueante {
         
     }
 
+    // ------------------------------------------------------------------------
+    //                            AVANZAR DIRECTORIO
+    // ------------------------------------------------------------------------
+    private static void avanzarDirectorio(DataInputStream inStream, SocketAddress cliente) throws Exception {
+        System.out.println("\033[95m -- AVANZAR DIRECTORIO --\033[0m");
+
+        int tam = inStream.readInt();
+        byte[] bufferDirectorio = new byte[tam];
+        inStream.read(bufferDirectorio);
+        String directorio = new String(bufferDirectorio);
+
+        System.out.println("\033[94mContenido recibido:\033[0m");
+        System.out.println("\033[93mLongitud del directorio: \033[0m"+tam);
+        System.out.println("\033[93mNombre del directorio: \033[0m"+directorio);
+
+        Path nuevoDir = dir_actual.resolve(directorio);
+
+        // Verificar si es un directorio existente
+        if (Files.isDirectory(nuevoDir)) {
+            dir_actual = nuevoDir;
+            System.out.println("\033[92mCambio de directorio exitoso a: \n" + dir_actual + "\033[0m");
+        } else {
+            System.out.println("\033[91mEl directorio no existe: " + nuevoDir+ "\033[0m");
+        }
+        System.out.flush();
+        enviarInfoDirectorio(dir_actual, cliente);
+    }
     // ------------------------------------------------------------------------
     //                             CREAR DIRECTORIO
     // ------------------------------------------------------------------------

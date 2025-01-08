@@ -128,6 +128,41 @@ public class ClienteNoBloqueante {
         }
     }
 
+    static void avanzarDirectorio(DatagramChannel channel) {
+        try {
+            System.out.println("\n\033[95m -- AVANZAR DIRECTORIO --\033[0m");
+
+            // Clases para enviar información
+            ByteBuffer buffer = ByteBuffer.allocate(TAM_BUFFER);
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+
+            String path = JOptionPane.showInputDialog("Nombre del nuevo directorio");
+            if(path == null)
+                return;
+
+            // Enviar datos
+            byte[] path_bytes = path.getBytes();
+            outStream.writeInt(-2);
+            outStream.writeInt(path_bytes.length);
+            outStream.write(path_bytes);
+            outStream.flush();
+            buffer.put(byteOut.toByteArray());
+            buffer.flip();
+            channel.write(buffer);
+            byteOut.reset();
+            
+            System.out.println("\033[94mContenido enviado:\033[0m");
+            System.out.println("\033[93mCódigo de instrucción: \033[0m"+(-2));
+            System.out.println("\033[93mLongitud del directorio: \033[0m"+path_bytes.length);
+            System.out.println("\033[93mNombre del directorio: \033[0m"+new String(path_bytes));
+
+            estado = Estado.RECIBIENDO_DIRECTORIO;
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     // ------------------------------------------------------------------------
     //                             CREAR DIRECTORIO
     // ------------------------------------------------------------------------
@@ -165,7 +200,7 @@ public class ClienteNoBloqueante {
             e.printStackTrace();
         }
     }
-    
+
     // ------------------------------------------------------------------------
     //                            ELIMINAR ARCHIVO
     // ------------------------------------------------------------------------
@@ -194,7 +229,7 @@ public class ClienteNoBloqueante {
             byteOut.reset();
             
             System.out.println("\033[94mContenido enviado:\033[0m");
-            System.out.println("\033[93mCódigo de instrucción: \033[0m"+-4);
+            System.out.println("\033[93mCódigo de instrucción: \033[0m"+(-5));
             System.out.println("\033[93mLongitud del nombre: \033[0m"+path_bytes.length);
             System.out.println("\033[93mNombre del archivo: \033[0m"+new String(path_bytes));
 
@@ -238,7 +273,7 @@ public class ClienteNoBloqueante {
             byteOut.reset();
 
             System.out.println("\033[94mContenido enviado:\033[0m");
-            System.out.println("\033[93mCódigo de instrucción: \033[0m"+(-4));
+            System.out.println("\033[93mCódigo de instrucción: \033[0m"+(-7));
             System.out.println("\033[93mLongitud del nombre original: \033[0m"+original_bytes.length);
             System.out.println("\033[93mNombre original: \033[0m"+new String(original_bytes));
             System.out.println("\033[93mLongitud del nuevo nombre: \033[0m"+nuevo_bytes.length);

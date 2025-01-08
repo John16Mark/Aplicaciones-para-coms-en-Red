@@ -155,7 +155,7 @@ class WindowNoBloqueante extends JFrame {
 
         btnAvanzar.addActionListener(new ActionListener() { 
             public void actionPerformed(ActionEvent e) { 
-                //ClienteNoBloqueante.avanzarDirectorio(socket, direccion);
+                ClienteNoBloqueante.avanzarDirectorio(channel);
             } 
         });
 
