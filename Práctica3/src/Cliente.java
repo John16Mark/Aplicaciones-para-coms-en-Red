@@ -202,7 +202,7 @@ public class Cliente extends Thread{
                         if (archivo.exists()) {
                             try (FileInputStream fis = new FileInputStream(archivo)) {
                                 byte[] fileBytes = fis.readAllBytes();
-                                int fragmentSize = 10240;
+                                int fragmentSize = 1024;
                                 int totalFragments = (int) Math.ceil((double) fileBytes.length / fragmentSize);
 
                                 Mensaje mensajeArchivo = new Mensaje("archivo", nombreUsuario, archivo.getName(), String.valueOf(totalFragments));
