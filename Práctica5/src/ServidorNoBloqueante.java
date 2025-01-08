@@ -3,9 +3,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
@@ -36,7 +33,9 @@ public class ServidorNoBloqueante {
     enum Estado {
         ESPERANDO_SYN,
         ESPERANDO_ACK,
-        CONEXION_ESTABLECIDA
+        CONEXION_ESTABLECIDA,
+        CREAR_DIRECTORIO,
+        ELIMINAR_ARCHIVO,
     }
 
     public static void main(String[] args) {
@@ -136,17 +135,50 @@ public class ServidorNoBloqueante {
         
                                 estado = Estado.CONEXION_ESTABLECIDA;
                                 System.out.println("\033[92mConexión establecida con el cliente: " + cliente + "\033[0m");
-                                dir(dir_actual, cliente);
+                                enviarInfoDirectorio(dir_actual, cliente);
                                 break;
                             case CONEXION_ESTABLECIDA:
                                 if (!cliente.equals(clienteActual)) {
                                     System.out.println("\033[31mPaquete recibido de cliente desconocido\033[0m");
                                     continue;
                                 }
-                                // Aquí manejarás los paquetes de datos regulares.
                                 System.out.println("\033[94mPaquete recibido en estado de conexión establecida.\033[0m");
+
+                                int instruccion = inStream.readInt();
+                                switch (instruccion) {
+                                case -2:
+                                    System.out.println("\033[92mRecibido código para avanzar directorio\033[0m");
+                                    System.out.flush();
+                                    avanzarDirectorio(inStream, cliente); 
                                 break;
-        
+                                case -4:
+                                    System.out.println("\033[92mRecibido código para crear directorio\033[0m");
+                                    System.out.flush();
+                                    crearDirectorio(inStream, cliente);
+                                    break;
+                                case -5:
+                                    System.out.println("\033[92mRecibido código para eliminar archivo/directorio\033[0m");
+                                    System.out.flush();
+                                    eliminarArchivo(inStream, cliente);
+                                    break;
+                                case -7:
+                                    System.out.println("\033[92mRecibido código para crear renombrar archivo/directorio\033[0m");
+                                    System.out.flush();
+                                    renombrarArchivo(inStream, cliente);
+                                    break;
+                                default:
+                                    break;
+                                }
+                                
+                                break;
+                            case CREAR_DIRECTORIO:
+                                if (!cliente.equals(clienteActual)) {
+                                    System.out.println("\033[31mPaquete recibido de cliente desconocido\033[0m");
+                                    continue;
+                                }
+                                
+
+                                break;
                             default:
                                 System.out.println("\033[31mEstado desconocido\033[0m");
                                 break;
@@ -162,12 +194,147 @@ public class ServidorNoBloqueante {
         }
         
     }
-                    
-    void enviarInfoDirectorio() {
 
+    // ------------------------------------------------------------------------
+    //                            AVANZAR DIRECTORIO
+    // ------------------------------------------------------------------------
+    private static void avanzarDirectorio(DataInputStream inStream, SocketAddress cliente) throws Exception {
+        System.out.println("\033[95m -- AVANZAR DIRECTORIO --\033[0m");
+
+        int tam = inStream.readInt();
+        byte[] bufferDirectorio = new byte[tam];
+        inStream.read(bufferDirectorio);
+        String directorio = new String(bufferDirectorio);
+
+        System.out.println("\033[94mContenido recibido:\033[0m");
+        System.out.println("\033[93mLongitud del directorio: \033[0m"+tam);
+        System.out.println("\033[93mNombre del directorio: \033[0m"+directorio);
+
+        Path nuevoDir = dir_actual.resolve(directorio);
+
+        // Verificar si es un directorio existente
+        if (Files.isDirectory(nuevoDir)) {
+            dir_actual = nuevoDir;
+            System.out.println("\033[92mCambio de directorio exitoso a: \n" + dir_actual + "\033[0m");
+        } else {
+            System.out.println("\033[91mEl directorio no existe: " + nuevoDir+ "\033[0m");
+        }
+        System.out.flush();
+        enviarInfoDirectorio(dir_actual, cliente);
+    }
+    // ------------------------------------------------------------------------
+    //                             CREAR DIRECTORIO
+    // ------------------------------------------------------------------------
+    private static void crearDirectorio(DataInputStream inStream, SocketAddress cliente) throws Exception {
+        System.out.println("\033[95m -- CREAR DIRECTORIO --\033[0m");
+
+        int tam = inStream.readInt();
+        byte[] bufferDirectorio = new byte[tam];
+        inStream.read(bufferDirectorio);
+        String directorio = new String(bufferDirectorio);
+
+        System.out.println("\033[94mContenido recibido:\033[0m");
+        System.out.println("\033[93mLongitud del directorio: \033[0m"+tam);
+        System.out.println("\033[93mNombre del directorio: \033[0m"+directorio);
+
+        Path nuevoDir = dir_actual.resolve(directorio);
+        Files.createDirectories(nuevoDir);
+        System.out.println("\033[92mDirectorio creado con éxito.\033[0m");
+
+        enviarInfoDirectorio(dir_actual, cliente);
+    }
+
+    // ------------------------------------------------------------------------
+    //                            ELIMINAR ARCHIVO
+    // ------------------------------------------------------------------------
+    private static void eliminarArchivo(DataInputStream inStream, SocketAddress cliente) throws Exception {
+        System.out.println("\033[95m -- ELIMINAR ARCHIVO / DIRECTORIO --\033[0m");
+
+        int tam = inStream.readInt();
+        byte[] bufferNombre = new byte[tam];
+        inStream.read(bufferNombre);
+        String nombre = new String(bufferNombre);
+
+        System.out.println("\033[94mContenido recibido:\033[0m");
+        System.out.println("\033[93mLongitud del nombre: \033[0m"+tam);
+        System.out.println("\033[93mNombre del archivo: \033[0m"+nombre);
+
+        if(nombre.equals("") || nombre.equals(".") || nombre.equals("..")) {
+            System.out.println("\033[91mDirectorio inválido.\033[0m");
+            System.out.flush();
+
+            enviarInfoDirectorio(dir_actual, cliente);
+            return;
+        }
+
+        // Crear la ruta del archivo o directorio
+        Path pathToDelete = dir_actual.resolve(nombre);
+
+        try {
+            if (Files.exists(pathToDelete)) {
+                if (Files.isDirectory(pathToDelete)) {
+                    if (Files.list(pathToDelete).findAny().isPresent()) {
+                        System.out.println("\033[91mEl directorio tiene elementos. No se puede eliminar.\033[0m");
+                        System.out.flush();
+                    } else {
+                        Files.delete(pathToDelete);
+                        System.out.println("\033[94mDirectorio eliminado:\n" + pathToDelete + "\033[0m");
+                        System.out.flush();
+                    }
+                } else {
+                    // Eliminar el archivo
+                    Files.delete(pathToDelete);
+                    System.out.println("\033[94mArchivo eliminado\n" + pathToDelete + "\033[0m");
+                    System.out.flush();
+                }
+            } else {
+                System.out.println("\033[91mEl archivo o directorio no existe:\n" + pathToDelete + "\033[0m");
+                System.out.flush();
+            }
+        } catch (IOException e) {
+            System.err.println("\033[91mError al intentar eliminar el archivo o directorio:\n" + e.getMessage() + "\033[0m");
+            System.out.flush();
+        }
+
+        enviarInfoDirectorio(dir_actual, cliente);
+    }
+
+    // ------------------------------------------------------------------------
+    //                             RENOMBRAR ARCHIVO
+    // ------------------------------------------------------------------------
+    private static void renombrarArchivo(DataInputStream inStream, SocketAddress cliente) throws Exception {
+        System.out.println("\n\033[95m -- RENOMBRAR ARCHIVO / DIRECTORIO --\033[0m");
+        
+        int tam_original = inStream.readInt();
+        byte[] bufferOriginal = new byte[tam_original];
+        inStream.read(bufferOriginal);
+        String original = new String(bufferOriginal);
+
+        int tam_nuevo = inStream.readInt();
+        byte[] bufferNuevo = new byte[tam_nuevo];
+        inStream.read(bufferNuevo);
+        String nuevo = new String(bufferNuevo);
+
+        System.out.println("\033[94mContenido recibido:\033[0m");
+        System.out.println("\033[93mLongitud del nombre original: \033[0m"+tam_original);
+        System.out.println("\033[93mNombre original: \033[0m"+original);
+        System.out.println("\033[93mLongitud del nuevo nombre: \033[0m"+tam_nuevo);
+        System.out.println("\033[93mNuevo nombre: \033[0m"+nuevo);
+
+        try {
+            Path originalPath = dir_actual.resolve(original);
+            Path nuevoPath = dir_actual.resolve(nuevo);
+    
+            Files.move(originalPath, nuevoPath);
+            System.out.println("\033[92mArchivo renombrado con éxito.\033[0m");
+        } catch (IOException e) {
+            System.err.println("\033[91mError al renombrar el archivo: " + e.getMessage() + "\033[0m");
+        }
+
+        enviarInfoDirectorio(dir_actual, cliente);
     }
                     
-    static void dir(Path p, SocketAddress direccion) {
+    private static void enviarInfoDirectorio(Path p, SocketAddress direccion) {
         try {
             // Construir el mensaje
             ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
@@ -200,8 +367,6 @@ public class ServidorNoBloqueante {
             byte[] bufferContenido = message.getBytes();
             outStream.writeInt(bufferContenido.length);
             outStream.write(bufferContenido);
-            System.out.println("bufferContenido.length: "+bufferContenido.length);
-            System.out.println("bufferContenido: "+message);
     
             byte[] buffer = byteOut.toByteArray();
     
