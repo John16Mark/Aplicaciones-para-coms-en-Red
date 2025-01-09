@@ -1,6 +1,6 @@
 import java.net.*;
-import java.nio.charset.StandardCharsets;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -11,9 +11,11 @@ public class Servidor extends Thread {
   public static String direccionMulticast = "230.1.1.1";
   public static int puertoMulticast = 4000;
   public static int dgram_buf_len = 1024;
-  public ArrayList<String> usuariosActivos;
+  public static ArrayList<String> usuariosActivos;
 
-  private Map<String, InetSocketAddress> usuariosSockets = new HashMap<>();
+  final public static int TAM_BUFFER = 65535;
+
+  private static Map<String, InetSocketAddress> usuariosSockets = new HashMap<>();
   private static Map<Integer, byte[]> bufferRecepcion = new HashMap<>();
   
   public static void main(String[] args) {
@@ -117,69 +119,70 @@ public class Servidor extends Thread {
           /* ---------------------------------------------------------------------------------------
           *                                  ARCHIVOS - CAMBIARLOS
           * --------------------------------------------------------------------------------------- */
-          case "archivo":
-            String nombreArchivo = mensaje.getContenido();
-            long totalFragments = Long.parseLong(mensaje.getDestinatario());
-            System.out.println("Recibiendo archivo: " + nombreArchivo + " en " + totalFragments + " fragmentos");
+          case "enviarArchivo":
+            recibirArchivo(socket, mensaje.getUsuario());
+            // String nombreArchivo = mensaje.getContenido();
+            // long totalFragments = Long.parseLong(mensaje.getDestinatario());
+            // System.out.println("Recibiendo archivo: " + nombreArchivo + " en " + totalFragments + " fragmentos");
         
-            for (String usuarioActivo : usuariosActivos) {
-              if (!usuarioActivo.equals(mensaje.getUsuario())) {
-                System.out.println("\nRecibiendo archivo: " + nombreArchivo + " (" + totalFragments + " bytes) de " + mensaje.getUsuario());
+            // for (String usuarioActivo : usuariosActivos) {
+            //   if (!usuarioActivo.equals(mensaje.getUsuario())) {
+            //     System.out.println("\nRecibiendo archivo: " + nombreArchivo + " (" + totalFragments + " bytes) de " + mensaje.getUsuario());
 
-                File userDir = new File(usuarioActivo);
-                if (!userDir.exists()) {
-                  if (userDir.mkdir()) {
-                    System.out.println("Carpeta creada para el usuario " + usuarioActivo);
-                  }else {
-                    System.out.println("No se pudo crear la carpeta para el usuario: " + usuarioActivo);
-                  }
-                }
+            //     File userDir = new File(usuarioActivo);
+            //     if (!userDir.exists()) {
+            //       if (userDir.mkdir()) {
+            //         System.out.println("Carpeta creada para el usuario " + usuarioActivo);
+            //       }else {
+            //         System.out.println("No se pudo crear la carpeta para el usuario: " + usuarioActivo);
+            //       }
+            //     }
 
-                File guardarArchivo = new File(userDir, nombreArchivo);
+            //     File guardarArchivo = new File(userDir, nombreArchivo);
 
-                try (FileOutputStream fos = new FileOutputStream(guardarArchivo)) {
-                  long bytesRecibidos = 0;
-                  long startTime = System.currentTimeMillis();
-                  long timeoutLimit = 10000;
+            //     try (FileOutputStream fos = new FileOutputStream(guardarArchivo)) {
+            //       long bytesRecibidos = 0;
+            //       long startTime = System.currentTimeMillis();
+            //       long timeoutLimit = 10000;
 
-                  while (bytesRecibidos < totalFragments) {
-                      try {
-                          byte[] data = new byte[1028];
-                          DatagramPacket receivedPacket = new DatagramPacket(data, data.length);
-                          socket.receive(receivedPacket);
+            //       while (bytesRecibidos < totalFragments) {
+            //           try {
+            //               byte[] data = new byte[1028];
+            //               DatagramPacket receivedPacket = new DatagramPacket(data, data.length);
+            //               socket.receive(receivedPacket);
 
-                          if (receivedPacket.getLength() >= 4) {
-                              ByteArrayInputStream bais = new ByteArrayInputStream(receivedPacket.getData());
-                              DataInputStream in = new DataInputStream(bais);
-                              int sequenceNumber = in.readInt();
-                              int bytesRead = receivedPacket.getLength();
+            //               if (receivedPacket.getLength() >= 4) {
+            //                   ByteArrayInputStream bais = new ByteArrayInputStream(receivedPacket.getData());
+            //                   DataInputStream in = new DataInputStream(bais);
+            //                   int sequenceNumber = in.readInt();
+            //                   int bytesRead = receivedPacket.getLength();
 
-                              if (sequenceNumber >= 0) {
-                                  if (!bufferRecepcion.containsKey(sequenceNumber)) {
-                                      byte[] fileData = Arrays.copyOfRange(data, 4, bytesRead);
-                                      bufferRecepcion.put(sequenceNumber, fileData);
-                                      fos.write(fileData);
-                                      bytesRecibidos += (bytesRead - 4);
-                                  }
-                              }
-                          }
-                      } catch (SocketTimeoutException e) {
-                          if (System.currentTimeMillis() - startTime > timeoutLimit) {
-                              System.out.println("Tiempo de espera agotado");
-                              break;
-                          }
-                      }
-                  }
+            //                   if (sequenceNumber >= 0) {
+            //                       if (!bufferRecepcion.containsKey(sequenceNumber)) {
+            //                           byte[] fileData = Arrays.copyOfRange(data, 4, bytesRead);
+            //                           bufferRecepcion.put(sequenceNumber, fileData);
+            //                           fos.write(fileData);
+            //                           bytesRecibidos += (bytesRead - 4);
+            //                       }
+            //                   }
+            //               }
+            //           } catch (SocketTimeoutException e) {
+            //               if (System.currentTimeMillis() - startTime > timeoutLimit) {
+            //                   System.out.println("Tiempo de espera agotado");
+            //                   break;
+            //               }
+            //           }
+            //       }
 
-                  if (bytesRecibidos >= totalFragments) {
-                    System.out.println("Archivo recibido completamente");
-                  } else {
-                      System.out.println("Transferencia incompleta: " + bytesRecibidos + "/" + totalFragments + " bytes");
-                  }
+            //       if (bytesRecibidos >= totalFragments) {
+            //         System.out.println("Archivo recibido completamente");
+            //       } else {
+            //           System.out.println("Transferencia incompleta: " + bytesRecibidos + "/" + totalFragments + " bytes");
+            //       }
 
-                }
-              }
-            }
+            //     }
+            //   }
+            // }
             break;
 
           default:
@@ -213,5 +216,71 @@ public class Servidor extends Thread {
     InetSocketAddress direccion = new InetSocketAddress(dir, puerto);
     usuariosSockets.put(mensaje.getUsuario(), direccion);
     System.out.println("\033[96mPuerto del usuario\033[0m " + mensaje.getUsuario() + "\033[96m:\033[0m " + direccion.getPort() + " \033[96mcon direccion\033[0m " + direccion.getAddress());
+  }
+
+  /* ------------------------------------------------------------------------------------------------------
+  *                       
+  *                                         RECIBIR Y GUARDAR ARCHIVO
+  * 
+  * ------------------------------------------------------------------------------------------------------  */
+  static void recibirArchivo(MulticastSocket socket, String nombreUsuario) {
+    try {
+      while (true) {
+        byte[] buffer = new byte[TAM_BUFFER];
+        DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+        socket.receive(packet);
+
+        ByteArrayInputStream byteIn = new ByteArrayInputStream(packet.getData());
+        DataInputStream inStream = new DataInputStream(byteIn);
+
+        int packetNumber = inStream.readInt();
+        int totalPackets = inStream.readInt();
+        int fileNameLength = inStream.readInt();
+        byte[] fileNameBytes = new byte[fileNameLength];
+        inStream.readFully(fileNameBytes);
+        String fileName = new String(fileNameBytes, StandardCharsets.UTF_8);
+
+        int chunkLength = inStream.readInt();
+        byte[] fileChunk = new byte[chunkLength];
+        inStream.readFully(fileChunk);
+
+
+        InetSocketAddress direccionOrigen = usuariosSockets.get(nombreUsuario);
+        System.out.println("\033[96mPuerto origen\033[0m " + direccionOrigen.getPort() + " \033[96mdirección\033[0m " + direccionOrigen.getAddress());
+        for (String usuarioActivo : usuariosActivos) {
+          if (!usuarioActivo.equals(nombreUsuario)) {
+            File userDir = new File("archivos/" + usuarioActivo);
+            if (!userDir.exists()) {
+                userDir.mkdirs();
+            }
+
+            File file = new File(userDir, fileName);
+            try (FileOutputStream fos = new FileOutputStream(file, true)) {
+                fos.write(fileChunk);
+            }
+
+            System.out.println("Recibido paquete " + (packetNumber + 1) + "/" + totalPackets + " de " + fileName);
+          }
+        }
+
+        
+        // String senderAddress = packet.getAddress().getHostAddress();
+        // if (!senderAddress.equals(servidorNombre)) {
+        //     File userDir = new File("archivos/" + senderAddress);
+        //     if (!userDir.exists()) {
+        //         userDir.mkdirs();
+        //     }
+
+        //     File file = new File(userDir, fileName);
+        //     try (FileOutputStream fos = new FileOutputStream(file, true)) {
+        //         fos.write(fileChunk);
+        //     }
+
+        //     System.out.println("Recibido paquete " + (packetNumber + 1) + "/" + totalPackets + " de " + fileName);
+        // }
+      }
+    }catch (Exception e) {
+      e.printStackTrace();
+    }
   }
 }

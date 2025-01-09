@@ -8,10 +8,17 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
+import javax.swing.filechooser.FileSystemView;
 
 import com.google.gson.Gson;
 
@@ -26,6 +33,8 @@ public class Client {
     public static ArrayList<String> listaUsuariosActivos = new ArrayList<>();
     
     private static int puertoUnicast;
+    final public static int TAM_VENTANA = 5;
+    final public static int TAM_PAQUETE = 10000;
         
     public Client(String nombreUsuario) {
         Client.nombreUsuario = nombreUsuario;
@@ -266,68 +275,199 @@ public class Client {
         JFileChooser fileChooser = new JFileChooser();
         int seleccion = fileChooser.showOpenDialog(frame);
         frame.dispose();
+        try{
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
 
-        if (seleccion == JFileChooser.APPROVE_OPTION) {
-            File archivo = fileChooser.getSelectedFile();
-            String nombreArchivo = archivo.getName();
-            long archivoSize = archivo.length();
+            if (seleccion == JFileChooser.APPROVE_OPTION) {
+                File file = fileChooser.getSelectedFile();
+                Path filePath = file.toPath();
+                byte[] fileBytes = Files.readAllBytes(filePath);
+                byte[] fileNameBytes = file.getName().getBytes(StandardCharsets.UTF_8);
 
-            Mensaje mensaje = new Mensaje("archivo", nombreUsuario, nombreArchivo, String.valueOf(archivoSize));
-            String jsonArchivo = mensaje.toJson();
-            DatagramPacket metadatosPaquete = new DatagramPacket(jsonArchivo.getBytes(StandardCharsets.UTF_8), jsonArchivo.length(), grupo, puertoMulticast);
+                int totalPackets = (int) Math.ceil((double) fileBytes.length / TAM_PAQUETE);
+                int packetNumber = 0;
 
-            try {
-                socketMulticast.send(metadatosPaquete);
-                System.out.println("Enviando archivo... " + nombreArchivo + " [" + archivoSize + " bytes]");
+                Mensaje metadatos = new Mensaje("enviarArchivo", nombreUsuario, null, null);
+                String metadatosJson = metadatos.toJson();
+                byte[] metadataBuf = metadatosJson.getBytes(StandardCharsets.UTF_8);
+                DatagramPacket metadataPacket = new DatagramPacket(metadataBuf, metadataBuf.length, grupo, puertoMulticast);
+                socketMulticast.send(metadataPacket);
 
-                FileInputStream fis = new FileInputStream(archivo);
-                byte[] buffer = new byte[dgram_buf_len];
-                int bytesRead;
-                int sequenceNumber = 0;
-                int windowSize = 10;
-                List<DatagramPacket> ArchivoEnPackets = new ArrayList<>();
-
-                while ((bytesRead = fis.read(buffer)) != -1) {
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    DataOutputStream out = new DataOutputStream(baos);
-                    out.writeInt(sequenceNumber);
-                    out.write(buffer, 0, bytesRead);
-                    byte[] packetData = baos.toByteArray();
-
+                while (packetNumber < totalPackets) {
+                    int start = packetNumber * TAM_PAQUETE;
+                    int end = Math.min(start + TAM_PAQUETE, fileBytes.length);
+                    byte[] fileChunk = Arrays.copyOfRange(fileBytes, start, end);
+        
+                    outStream.writeInt(packetNumber);
+                    outStream.writeInt(totalPackets);
+                    outStream.writeInt(fileNameBytes.length);
+                    outStream.write(fileNameBytes);
+                    outStream.writeInt(fileChunk.length);
+                    outStream.write(fileChunk);
+                    outStream.flush();
+        
+                    byte[] packetData = byteOut.toByteArray();
                     DatagramPacket packet = new DatagramPacket(packetData, packetData.length, grupo, puertoMulticast);
-                    ArchivoEnPackets.add(packet);
-
-                    sequenceNumber++;
+                    socketMulticast.send(packet);
+                    byteOut.reset();
+        
+                    packetNumber++;
                 }
 
-                System.out.println("Archivo dividido en " + ArchivoEnPackets.size() + " partes.");
-                int vueltasEnvio = ArchivoEnPackets.size() / windowSize;
+                System.out.println("Archivo enviado");
 
-                for (int i = 0; i < vueltasEnvio; i++) {
-                    for (int j = 0; j < windowSize && (i * windowSize + j) < ArchivoEnPackets.size(); j++) {
-                        int packetIndex = i * windowSize + j;
-                        socketMulticast.send(ArchivoEnPackets.get(packetIndex));
-                    }
-                }
-
-                int paquetesRestantes = ArchivoEnPackets.size() % windowSize;
-                int startIndex = vueltasEnvio * windowSize;
-
-                if (paquetesRestantes > 0) {
-                    for (int i = 0; i < paquetesRestantes; i++) {
-                        socketMulticast.send(ArchivoEnPackets.get(startIndex + i));
-                    }
-                }
-
-                System.out.println("Archivo enviado completamente");
-                fis.close();
-            }catch (IOException e) {
-                System.err.println("Error al enviar el archivo: " + e.getMessage());
+            }else {
+                return;
             }
-        }else {
-            System.out.println("No se seleccionó ningún archivo.");
+        }catch (Exception e) {
+            e.printStackTrace();
         }
     }
+
+        //     try {
+        //         socket.send(metadataPacket);
+        //         System.out.println("\nEnviando archivo: " + fileName + " (" + fileSize + " bytes)");
+
+        //         FileInputStream fis = new FileInputStream(file);
+        //         byte[] buffer = new byte[1024];
+        //         int bytesRead;
+        //         int sequenceNumber = 0;
+        //         int windowSize = 10;
+        //         List<DatagramPacket> ArchivoEnPackets = new ArrayList<>();
+
+        //         while ((bytesRead = fis.read(buffer)) != -1) {
+        //             ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        //             DataOutputStream out = new DataOutputStream(baos);
+        //             out.writeInt(sequenceNumber);
+        //             out.write(buffer, 0, bytesRead);
+        //             byte[] packetData = baos.toByteArray();
+
+        //             DatagramPacket packet = new DatagramPacket(packetData, packetData.length, group, PORT);
+        //             ArchivoEnPackets.add(packet);
+
+        //             sequenceNumber++;
+        //         }
+
+        //         System.out.println("Archivo dividido en " + ArchivoEnPackets.size() + " partes.");
+        //         int vueltasEnvio = ArchivoEnPackets.size() / windowSize;
+
+        //         for (int i = 0; i < vueltasEnvio; i++) {
+        //             for (int j = 0; j < windowSize && (i * windowSize + j) < ArchivoEnPackets.size(); j++) {
+        //                 int packetIndex = i * windowSize + j;
+        //                 socket.send(ArchivoEnPackets.get(packetIndex));
+        //             }
+        //         }
+
+        //         int paquetesRestantes = ArchivoEnPackets.size() % windowSize;
+        //         int startIndex = vueltasEnvio * windowSize;
+
+        //         if (paquetesRestantes > 0) {
+        //             for (int i = 0; i < paquetesRestantes; i++) {
+        //                 socket.send(ArchivoEnPackets.get(startIndex + i));
+        //             }
+        //         }
+
+        //         System.out.println("Archivo enviado completamente");
+        //     } catch (IOException e) {
+        //         System.err.println("Error al enviar el archivo: " + e.getMessage());
+        //     }
+        // } else {
+        //     System.out.println("No se seleccionó ningún archivo.");
+        // }
+
+        // if (seleccion == JFileChooser.APPROVE_OPTION) {
+        //     File archivo = fileChooser.getSelectedFile();
+        //     String nombreArchivo = archivo.getName();
+        //     long archivoSize = archivo.length();
+
+        //     // Envío de metadatos
+        //     Mensaje mensaje = new Mensaje("archivo", nombreUsuario, nombreArchivo, String.valueOf(archivoSize));
+        //     String jsonArchivo = mensaje.toJson();
+        //     DatagramPacket metadatosPaquete = new DatagramPacket(jsonArchivo.getBytes(StandardCharsets.UTF_8), jsonArchivo.length(), grupo, puertoMulticast);
+
+        //     try {
+        //         socketMulticast.send(metadatosPaquete);
+        //         System.out.println("Enviando archivo... " + metadatosPaquete);
+
+        //         FileInputStream fis = new FileInputStream(archivo);
+        //         byte[] buffer = new byte[dgram_buf_len];
+        //         int bytesRead;
+        //         int sequenceNumber = 0;
+        //         // int windowSize = 10;
+        //         // List<DatagramPacket> ArchivoEnPackets = new ArrayList<>();
+
+        //         while ((bytesRead = fis.read(buffer)) != -1) {
+        //             ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        //             DataOutputStream out = new DataOutputStream(baos);
+        //             out.writeInt(sequenceNumber);
+        //             out.write(buffer, 0, bytesRead);
+        //             byte[] packetData = baos.toByteArray();
+
+        //             DatagramPacket fragmento = new DatagramPacket(packetData, packetData.length, grupo, puertoMulticast);
+        //             socketMulticast.send(fragmento);
+        //             System.out.println("Fragmento enviado: " + sequenceNumber);
+
+        //             // Espera el acuse de recibo
+        //             byte[] ackBuffer = new byte[32];
+        //             DatagramPacket ackPaquete = new DatagramPacket(ackBuffer, ackBuffer.length);
+        //             socketMulticast.setSoTimeout(2000); // 2 segundos de timeout
+
+        //             try {
+        //                 socketMulticast.receive(ackPaquete);
+        //                 String ack = new String(ackPaquete.getData(), 0, ackPaquete.getLength(), StandardCharsets.UTF_8);
+        //                 if (!ack.equals("ACK:" + sequenceNumber)) {
+        //                     System.err.println("ACK incorrecto, reenviando fragmento " + sequenceNumber);
+        //                     continue;
+        //                 }
+        //             } catch (SocketTimeoutException e) {
+        //                 System.err.println("No se recibió ACK para el fragmento " + sequenceNumber + ", reenviando.");
+        //                 continue;
+        //             }
+
+        //             sequenceNumber++;
+        //         }
+        //         String finSignal = "FIN";
+        //         DatagramPacket finPacket = new DatagramPacket(finSignal.getBytes(StandardCharsets.UTF_8), finSignal.length(), grupo, puertoMulticast);
+        //         socketMulticast.send(finPacket);
+        //         System.out.println("Archivo enviado completamente.");
+        //         fis.close();
+        //     }catch (IOException e) {
+        //         System.err.println("Error al enviar archivo: " + e.getMessage());
+        //     }
+        // }else {
+        //     System.out.println("No se seleccionó ningún archivo");
+        // }
+    
+
+        //         System.out.println("Archivo dividido en " + ArchivoEnPackets.size() + " partes.");
+        //         int vueltasEnvio = ArchivoEnPackets.size() / windowSize;
+
+        //         for (int i = 0; i < vueltasEnvio; i++) {
+        //             for (int j = 0; j < windowSize && (i * windowSize + j) < ArchivoEnPackets.size(); j++) {
+        //                 int packetIndex = i * windowSize + j;
+        //                 socketMulticast.send(ArchivoEnPackets.get(packetIndex));
+        //             }
+        //         }
+
+        //         int paquetesRestantes = ArchivoEnPackets.size() % windowSize;
+        //         int startIndex = vueltasEnvio * windowSize;
+
+        //         if (paquetesRestantes > 0) {
+        //             for (int i = 0; i < paquetesRestantes; i++) {
+        //                 socketMulticast.send(ArchivoEnPackets.get(startIndex + i));
+        //             }
+        //         }
+
+        //         System.out.println("Archivo enviado completamente");
+        //         fis.close();
+        //     }catch (IOException e) {
+        //         System.err.println("Error al enviar el archivo: " + e.getMessage());
+        //     }
+        // }else {
+        //     System.out.println("No se seleccionó ningún archivo.");
+        // }
+    
     
     /* ------------------------------------------------------------------------------------------------------
     *                       

@@ -141,7 +141,7 @@ class Interfaz extends JFrame {
           * --------------------------------------------------------------------------------------- */
         btnEnviarArchivo.addActionListener(e -> {
             Client.enviarArchivo(Client.nombreUsuario, socket);
-            textAreaChat.append("Se ha enviado un archivo de parte de " + Client.nombreUsuario);
+            // textAreaChat.append("Se ha enviado un archivo de parte de " + Client.nombreUsuario + "\n");
         });
 
         setVisible(true);
