@@ -104,6 +104,9 @@ class Interfaz extends JFrame {
         JButton btnEnviarMensaje = new JButton("Enviar");
         panelEnviarMensaje.add(btnEnviarMensaje, BorderLayout.EAST);
 
+        JButton btnEmoji = new JButton("😀");
+        panelEnviarMensaje.add(btnEmoji, BorderLayout.WEST);
+
         // Acciones para los botones
         /* ---------------------------------------------------------------------------------------
           *                                  SALIR DEL SERVIDOR
@@ -142,6 +145,27 @@ class Interfaz extends JFrame {
         btnEnviarArchivo.addActionListener(e -> {
             Client.enviarArchivo(Client.nombreUsuario, socket);
             // textAreaChat.append("Se ha enviado un archivo de parte de " + Client.nombreUsuario + "\n");
+        });
+        /* ---------------------------------------------------------------------------------------
+         *                              ENVIAR ARCHIVO
+         * --------------------------------------------------------------------------------------- */
+        btnEmoji.addActionListener(e -> {
+            // Crear un cuadro de diálogo para seleccionar emojis
+            String[] emojis = {"😀", "😂", "❤️", "👍", "😢", "🔥", "🎉", "💡"};
+            String emojiSeleccionado = (String) JOptionPane.showInputDialog(
+                this,
+                "Selecciona un emoji:",
+                "Emojis",
+                JOptionPane.PLAIN_MESSAGE,
+                null,
+                emojis,
+                emojis[0]
+            );
+
+            // Agregar el emoji seleccionado al mensaje
+            if (emojiSeleccionado != null) {
+                textFieldMensaje.setText(textFieldMensaje.getText() + emojiSeleccionado);
+            }
         });
 
         setVisible(true);
