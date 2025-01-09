@@ -150,7 +150,12 @@ public class ServidorNoBloqueante {
                                     System.out.println("\033[92mRecibido código para avanzar directorio\033[0m");
                                     System.out.flush();
                                     avanzarDirectorio(inStream, cliente); 
-                                break;
+                                    break;
+                                case -3:
+                                    System.out.println("\033[92mRecibido código para regresar directorio\033[0m");
+                                    System.out.flush();
+                                    regresarDirectorio(cliente); 
+                                    break;
                                 case -4:
                                     System.out.println("\033[92mRecibido código para crear directorio\033[0m");
                                     System.out.flush();
@@ -160,6 +165,11 @@ public class ServidorNoBloqueante {
                                     System.out.println("\033[92mRecibido código para eliminar archivo/directorio\033[0m");
                                     System.out.flush();
                                     eliminarArchivo(inStream, cliente);
+                                    break;
+                                case -6:
+                                    System.out.println("\033[92mRecibido código para bajar archivo\033[0m");
+                                    System.out.flush();
+                                    //bajarArchivo(inStream, cliente);
                                     break;
                                 case -7:
                                     System.out.println("\033[92mRecibido código para crear renombrar archivo/directorio\033[0m");
@@ -222,6 +232,27 @@ public class ServidorNoBloqueante {
         System.out.flush();
         enviarInfoDirectorio(dir_actual, cliente);
     }
+
+    // ------------------------------------------------------------------------
+    //                             REGRESAR DIRECTORIO
+    // ------------------------------------------------------------------------
+    private static void regresarDirectorio(SocketAddress cliente) throws Exception {
+        System.out.println("\n\033[95m -- REGRESAR DIRECTORIO --\033[0m");
+
+        Path basePath = Paths.get(dir_server).normalize();
+                        
+        // Si no estamos ya en el directorio base
+        if (dir_actual.startsWith(basePath) && !dir_actual.equals(basePath)) {
+            dir_actual = dir_actual.getParent();
+            System.out.println("\033[92mRetrocediendo un directorio:\n" + dir_actual + "\033[0m");
+        } else {
+            System.out.println("\033[91mNo se puede retroceder. Ya estás en el directorio base:\n" + basePath + "\033[0m");
+        }
+
+        System.out.flush();
+        enviarInfoDirectorio(dir_actual, cliente);
+    }
+
     // ------------------------------------------------------------------------
     //                             CREAR DIRECTORIO
     // ------------------------------------------------------------------------

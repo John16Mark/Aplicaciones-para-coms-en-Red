@@ -21,7 +21,7 @@ class Server {
         DataInputStream inStream;
 
         protected String nombreArchivo;
-        StringBuilder cabeceras;
+        Map<String, String> cabeceras;
         StringBuilder contenido;
         Map<String, String> parametros;
 
@@ -80,7 +80,7 @@ class Server {
                 }
 
                 // Separar las cabeceras y el contenido.
-                cabeceras = new StringBuilder();
+                cabeceras = new HashMap<>();
                 contenido = new StringBuilder();
                 boolean esContenido = false;
                 while(stringTokenizer.hasMoreTokens()) {
@@ -95,14 +95,27 @@ class Server {
                             contenido.append("\n");
                         }
                     }
-                    else
-                        cabeceras.append(linea + "\n");
+                    else {
+                        String[] pares = linea.split(": ");
+                        String clave = pares[0];
+                        String valor = pares[1].replaceAll("\r", "");
+                        cabeceras.put(clave, valor);
+                    }
+                        
                 }
 
+                // Imprimir valores de la solicitud
                 System.out.print("\033[93mURI:\033[0m\n"+nombreArchivo+"\n");
                 System.out.print("\033[93mParámetros:\033[0m\n"+parametros+"\n");
-                System.out.print("\033[93mCabeceras:\033[0m\n"+cabeceras);
-                System.out.print("\033[93mContenido:\033[0m\n"+contenido+"\n");
+                System.out.print("\033[93mCabeceras:\033[0m\n");
+                String cabecerasString = "";
+                for (Map.Entry<String, String> entry : cabeceras.entrySet()) {
+                    cabecerasString += "\033[35m" + entry.getKey() + "\033[95m=\033[0m" + entry.getValue() + "\n";
+                }
+                System.out.print(cabecerasString);
+                System.out.print("\033[93mContenido:\033[0m\n");
+                System.out.println("\033[92mContenido:\033[0m\n");
+                System.out.print(contenido + "\n");
 
                 switch(metodo) {
                     case "GET":
@@ -138,6 +151,9 @@ class Server {
             }
         }
 
+        // ---------------------------------------------------------------------
+        //                                  GET
+        // ---------------------------------------------------------------------
         public void GET(String line) throws Exception{
             // Si no recibo argumentos
             if(line.indexOf("?") == -1) {
@@ -187,68 +203,154 @@ class Server {
             }
         }
 
+        // ---------------------------------------------------------------------
+        //                                  POST
+        // ---------------------------------------------------------------------
         public void POST(StringTokenizer stringTokenizer) throws Exception {
             System.out.println("\033[92mNombre del archivo:\033[0m "+nombreArchivo);
-            System.out.println("\033[92mContenido:\033[0m\n"+contenido);
-            
-            // Separar los datos
-            String[] pares = contenido.toString().split("&");
-            Map<String, String> datos = new HashMap<>();
-            for (String par : pares) {
-                String[] keyValue = par.split("=", 2);
-                String clave = URLDecoder.decode(keyValue[0], "UTF-8");
-                String valor = keyValue.length > 1 ? URLDecoder.decode(keyValue[1], "UTF-8") : "";
-                datos.put(clave, valor);
-            }
+            System.out.println("\033[92mContent-Type:\033[0m\n"+cabeceras.get("Content-Type"));
+            System.out.println("\033[92mContenido:\033[0m\n");
+            System.out.print(contenido + "\n");
 
-            // Formatear los datos
-            String datosString = "";
-            String datosHtml = "";
-            for (Map.Entry<String, String> entry : datos.entrySet()) {
-                datosString += "\033[35m" + entry.getKey() + "\033[95m=\033[0m" + entry.getValue() + "\n";
-                datosHtml += "<b>" + entry.getKey() + "</b> = " + entry.getValue() + "<br>\n";
-            }
-            System.out.print("\033[92mDatos:\033[0m\n"+datosString);
+            String respuesta = "HTTP/1.0 ";
+            String estado = "200 OK\n";
+            String headers = "Server: Juan y Paola Server/1.0\n" +
+                "Date: " + new Date()+" \n";
+            String content_type = "Content-Type: text/plain\n\n";
+            String content = "";
             
-            // Construir el JSON de respuesta
-            StringBuilder jsonBuilder = new StringBuilder();
-            jsonBuilder.append("{\n  \"status\": \"success\",\n  \"received_data\": {\n");
-            int count = 0;
-            for (Map.Entry<String, String> entry : datos.entrySet()) {
-                jsonBuilder.append("    \"")
-                        .append(entry.getKey())
-                        .append("\": \"")
-                        .append(entry.getValue())
-                        .append("\"");
-                if (++count < datos.size()) {
-                    jsonBuilder.append(",\n");
+            // Datos form application url encoded
+            if (!cabeceras.containsKey("Content-Type")) {
+                enviarError( "400 Bad Request", "Content-Type no especificado.");
+                return;
+            }
+            else if(cabeceras.get("Content-Type").equals("application/x-www-form-urlencoded")) {
+                // Separar los datos
+                String[] pares = contenido.toString().split("&");
+                Map<String, String> datos = new HashMap<>();
+                for (String par : pares) {
+                    String[] keyValue = par.split("=", 2);
+                    String clave = URLDecoder.decode(keyValue[0], "UTF-8");
+                    String valor = keyValue.length > 1 ? URLDecoder.decode(keyValue[1], "UTF-8") : "";
+                    datos.put(clave, valor);
+                }
+
+                // Formatear los datos
+                String datosString = "";
+                for (Map.Entry<String, String> entry : datos.entrySet()) {
+                    datosString += "\033[35m" + entry.getKey() + "\033[95m=\033[0m" + entry.getValue() + "\n";
+                }
+                System.out.print("\033[92mDatos:\033[0m\n"+datosString);
+                
+                // Construir el JSON de respuesta.
+                String jsonResponse = mapToJson(datos);
+
+                // Respuesta (podemos mostrarla como json o como html)
+                estado = "200 OK\n";
+                content_type = "Content-Type: application/json\n\n";
+                content = jsonResponse;
+            // Datos form multipart
+            } else if(cabeceras.get("Content-Type").startsWith("multipart/form-data;")) {
+                String[] separacion = cabeceras.get("Content-Type").split("=");
+                String separador = "--" + separacion[1];
+
+                String[] partes = contenido.toString().split(separador);
+                Map<String, String> datos = new HashMap<>();
+                
+                for (String parte : partes) {
+                    if (parte.trim().isEmpty() || parte.equals("--")) {
+                        continue;
+                    }
+            
+                    // Si es dato del formulario
+                    if (parte.contains("Content-Disposition: form-data;")) {
+                        String[] lineas = parte.split("\r\n");
+                        String clave = null;
+                        String valor = null;
+            
+                        for (String linea : lineas) {
+                            if (linea.startsWith("Content-Disposition: form-data;")) {
+                                int start = linea.indexOf("name=\"") + 6;
+                                int end = linea.indexOf("\"", start);
+                                clave = linea.substring(start, end);
+                            } else if (!linea.isEmpty() && clave != null) {
+                                valor = linea.trim();
+                                break;
+                            }
+                        }
+            
+                        // Si ambos no son null
+                        if (clave != null && valor != null) {
+                            datos.put(clave, valor);
+                        }
+                    }
+                }
+            
+                // Formatear los datos para mostrar.
+                String datosString = "";
+                for (Map.Entry<String, String> entry : datos.entrySet()) {
+                    datosString += "\033[35m" + entry.getKey() + "\033[95m=\033[0m" + entry.getValue() + "\n";
+                }
+                System.out.print("\033[92mDatos:\033[0m\n" + datosString);
+            
+                // Construir el JSON de respuesta.
+                String jsonResponse = mapToJson(datos);
+            
+                // Respuesta (podemos mostrarla como JSON o como HTML).
+                estado = "200 OK\n";
+                content_type = "Content-Type: application/json\n\n";
+                content = jsonResponse;
+            } else if(cabeceras.get("Content-Type").equals("application/json")) {
+                String cont = contenido.toString().trim();
+                if (cont.startsWith("{") && cont.endsWith("}")) {
+                    cont = cont.substring(1, cont.length() - 1); // Eliminar llaves
+                    String[] pares = cont.split(",");
+                    Map<String, String> datos = new HashMap<>();
+
+                    for (String par : pares) {
+                        String[] keyValue = par.split(":", 2);
+                        String clave = keyValue[0].trim().replace("\"", "");
+                        String valor = keyValue[1].trim().replace("\"", "");
+                        datos.put(clave, valor);
+                    }
+
+                    String jsonResponse = mapToJson(datos);
+                    estado = "200 OK\n";
+                    content_type = "Content-Type: application/json\n\n";
+                    content = jsonResponse;
                 } else {
-                    jsonBuilder.append("\n");
+                    estado = "400 Bad Request\n";
+                    content_type = "Content-Type: text/plain\n\n";
+                    content = "El cuerpo del JSON es inválido.\n";
                 }
             }
-            jsonBuilder.append("  }\n}\n");
-            String jsonResponse = jsonBuilder.toString();
+            // TODO
+            else if (cabeceras.get("Content-Type").startsWith("multipart/form-data;")) {
 
-            // Respuesta (podemos mostrarla como json o como html)
-            String respuesta = "HTTP/1.0 200 OK\n";
-            respuesta += "Server: Juan y Paola Server/1.0\n" +
-                "Date: " + new Date()+" \n";
-            if(POST_json) {
-                respuesta += "Content-Type: application/json\n\n";
-                respuesta += jsonResponse;
-            } else {
-                respuesta += "Content-Type: text/html\n\n";
-                respuesta += "<html><head><title>SERVIDOR WEB - RESPUESTA POST</title></head>\n";
-                respuesta += "<body style=\"background-color: #ffffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\"> " +
-                "<div style=\"width: 100%; align-self: center; text-align: center;\"><h1>Datos recibidos..</h1>\n";
-                respuesta += "<div style=\"\r\n" + //
-                                "width: 60%;\r\n" + //
-                                "margin: 0 auto;\r\n" + //
-                                "padding: 10px;\r\n" + //
-                                "position: relative;\r\n" + //
-                                "background-color: #2589e6;\" >" + datosHtml + "";
-                respuesta += "</div></body></html>\n\n";
             }
+            // Si recibo un nombre asumimos que estamos recibiendo un archivo
+            else if(!nombreArchivo.equals("")) {
+                // Crear el archivo
+                System.out.println("\033[92mContenido:\033[0m\n"+contenido);
+                File archivo = new File(directorio + File.separator + nombreArchivo);
+                try (FileOutputStream fos = new FileOutputStream(archivo)) {
+                    fos.write(contenido.toString().getBytes());
+                    fos.flush();
+                }
+                System.out.println("\033[96m\nArchivo guardado:\033[0m\n" + archivo.getAbsolutePath());
+
+                // Respuesta
+                estado = "200 OK\n"; 
+                content_type = "Content-Type: text/plain\n\n";
+                content = "Recurso creado o actualizado correctamente.\n";
+            // Si no recibo nombre
+            } else {
+                
+                estado = "200 OK\n";
+                content_type = "Content-Type: text/plain\n\n";
+                content = "Solicitud recibida.\n";
+            }
+            respuesta += estado + headers + content_type + content;
             
             System.out.println("\033[93m\nRespuesta:");
             System.out.print("\033[32m"+respuesta);
@@ -259,6 +361,9 @@ class Server {
             socket.close();
         }
 
+        // ---------------------------------------------------------------------
+        //                                   PUT
+        // ---------------------------------------------------------------------
         public void PUT(String primeraLinea) throws Exception {
             File dir = new File(directorio);
             if(!dir.exists())
@@ -270,8 +375,10 @@ class Server {
                 return;
             }
 
+            System.out.println("\033[92mContenido:\033[0m\n");
+            System.out.print(contenido + "\n");
+
             // Crear el archivo
-            System.out.println("\033[92mContenido:\033[0m\n"+contenido);
             if(!parametros.isEmpty()) {
                 enviarError("400 Bad Request", "No se admiten argumentos en la solicitud PUT.");
                 return;
@@ -297,6 +404,9 @@ class Server {
             socket.close();
         }
 
+        // ---------------------------------------------------------------------
+        //                                 DELETE
+        // ---------------------------------------------------------------------
         public void DELETE(String primeraLinea, StringTokenizer stringTokenizer) throws Exception {
             File dir = new File(directorio);
             if(!dir.exists())
@@ -339,6 +449,9 @@ class Server {
             socket.close();
         }
 
+        // ---------------------------------------------------------------------
+        //                                  HEAD
+        // ---------------------------------------------------------------------
         public void HEAD() throws Exception {
             long tamano = 0;
             
@@ -376,18 +489,6 @@ class Server {
             outStream.close();
             socket.close();
         }
-/*
-        public void enviarSuccess(String codigo, String mensaje) throws Exception{
-            String respuesta = "HTTP/1.0 "+ codigo +"\n" +
-                "Content-Type: text/plain\n\n" + mensaje + "\n";
-            System.out.println("\033[93m\nRespuesta:");
-            System.out.print("\033[32m"+respuesta+"\033[0m");
-            System.out.println(sep);
-            outStream.write(respuesta.getBytes());
-            outStream.flush();
-            outStream.close();
-            socket.close();
-        }*/
 
         public void enviarError(String codigo, String mensaje) throws Exception{
             String respuesta = "HTTP/1.0 "+ codigo +"\n" +
@@ -461,6 +562,27 @@ class Server {
             } catch(Exception e) {
                 System.out.println(e.getMessage());
             }
+        }
+
+        private String mapToJson(Map<String, String> mapa) {
+            // Construir el JSON de respuesta.
+            StringBuilder jsonBuilder = new StringBuilder();
+            jsonBuilder.append("{\n  \"status\": \"success\",\n  \"received_data\": {\n");
+            int count = 0;
+            for (Map.Entry<String, String> entry : mapa.entrySet()) {
+                jsonBuilder.append("    \"")
+                        .append(entry.getKey())
+                        .append("\": \"")
+                        .append(entry.getValue())
+                        .append("\"");
+                if (++count < mapa.size()) {
+                    jsonBuilder.append(",\n");
+                } else {
+                    jsonBuilder.append("\n");
+                }
+            }
+            jsonBuilder.append("  }\n}\n");
+            return jsonBuilder.toString();
         }
         /*
         private String getMimeManual(File file) {

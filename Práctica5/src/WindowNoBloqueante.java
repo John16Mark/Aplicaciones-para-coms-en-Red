@@ -125,7 +125,7 @@ class WindowNoBloqueante extends JFrame {
 
         btnSubir.addActionListener(new ActionListener() { 
             public void actionPerformed(ActionEvent e) { 
-                //ClienteNoBloqueante.subirArchivo(socket, direccion);
+                ClienteNoBloqueante.subirArchivo(channel);
             } 
         });
 
@@ -161,7 +161,7 @@ class WindowNoBloqueante extends JFrame {
 
         btnRegresar.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                //ClienteNoBloqueante.regresarDirectorio(socket, direccion);
+                ClienteNoBloqueante.regresarDirectorio(channel);
             }
         });
         

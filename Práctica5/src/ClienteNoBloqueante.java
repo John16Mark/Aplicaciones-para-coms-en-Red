@@ -2,15 +2,25 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketAddress;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Iterator;
 
+import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
+import javax.swing.filechooser.FileSystemView;
 
 public class ClienteNoBloqueante {
 
@@ -19,6 +29,8 @@ public class ClienteNoBloqueante {
     final public static int TAM_BUFFER = 65535;
     final static String dir_host = "127.0.0.1";
     final static int PORT = 5555;
+    final static int TIEMPO_ESPERA_ENVIAR = 500;
+    final static int TIEMPO_ESPERA_RECIBIR = 2000;
 
     enum Estado {
         ESPERANDO_SYN_ACK,
@@ -128,6 +140,9 @@ public class ClienteNoBloqueante {
         }
     }
 
+    // ------------------------------------------------------------------------
+    //                            AVANZAR DIRECTORIO
+    // ------------------------------------------------------------------------
     static void avanzarDirectorio(DatagramChannel channel) {
         try {
             System.out.println("\n\033[95m -- AVANZAR DIRECTORIO --\033[0m");
@@ -164,6 +179,35 @@ public class ClienteNoBloqueante {
     }
 
     // ------------------------------------------------------------------------
+    //                             REGRESAR DIRECTORIO
+    // ------------------------------------------------------------------------
+    static void regresarDirectorio(DatagramChannel channel) {
+        try {
+            System.out.println("\n\033[95m -- REGRESAR DIRECTORIO --\033[0m");
+
+            // Clases para enviar información
+            ByteBuffer buffer = ByteBuffer.allocate(TAM_BUFFER);
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+
+            // Enviar datos
+            outStream.writeInt(-3);
+            outStream.flush();
+            buffer.put(byteOut.toByteArray());
+            buffer.flip();
+            channel.write(buffer);
+            byteOut.reset();
+            
+            System.out.println("\033[94mContenido enviado:\033[0m");
+            System.out.println("\033[93mCódigo de instrucción: \033[0m"+(-3));
+
+            estado = Estado.RECIBIENDO_DIRECTORIO;
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ------------------------------------------------------------------------
     //                             CREAR DIRECTORIO
     // ------------------------------------------------------------------------
     static void crearDirectorio(DatagramChannel channel) {
@@ -191,7 +235,7 @@ public class ClienteNoBloqueante {
             byteOut.reset();
             
             System.out.println("\033[94mContenido enviado:\033[0m");
-            System.out.println("\033[93mCódigo de instrucción: \033[0m"+-4);
+            System.out.println("\033[93mCódigo de instrucción: \033[0m"+(-4));
             System.out.println("\033[93mLongitud del directorio: \033[0m"+path_bytes.length);
             System.out.println("\033[93mNombre del directorio: \033[0m"+new String(path_bytes));
 
@@ -282,6 +326,108 @@ public class ClienteNoBloqueante {
             estado = Estado.RECIBIENDO_DIRECTORIO;
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    //                              SUBIR ARCHIVO
+    // ------------------------------------------------------------------------
+    static void subirArchivo(DatagramChannel channel) {
+        String rutaArchivo;
+        String nombreArchivo;
+        try {
+            SocketAddress serverAddress = new InetSocketAddress(InetAddress.getByName(dir_host), PORT);
+            // Clases para enviar información
+            ByteBuffer buffer = ByteBuffer.allocate(TAM_BUFFER);
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
+
+            // Clases para recibir inormación
+            ByteArrayInputStream byteIn;
+            DataInputStream inStream;
+
+            // Seleccionar archivo
+            JFileChooser jfc = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
+            int returnValue = jfc.showOpenDialog(null);
+            if (returnValue == JFileChooser.APPROVE_OPTION) {
+                File selectedFile = jfc.getSelectedFile();
+                rutaArchivo = selectedFile.getAbsolutePath();
+                nombreArchivo = selectedFile.getName();
+            } else
+                return;
+            
+            Path path = Paths.get(rutaArchivo);
+            byte[] file = Files.readAllBytes(path);
+            byte[] fileNameBytes = nombreArchivo.getBytes();
+
+            int tam = TAM_PAQUETE;
+            int PAQUETES_COMPLETOS = file.length / TAM_PAQUETE;
+            int TOTAL_PAQUETES = (file.length % TAM_PAQUETE == 0) ? PAQUETES_COMPLETOS : PAQUETES_COMPLETOS + 1;
+            int n_sobrantes = file.length % TAM_PAQUETE;
+
+            int start = 0; // Apuntador al inicio de la ventana
+            int apuntador = 0; // Apuntador al paquete que se va a mandar
+
+            while (start < TOTAL_PAQUETES) {
+            // Enviar paquetes en la ventana
+            while (apuntador < start + TAM_VENTANA && apuntador < TOTAL_PAQUETES) {
+                byte[] btmp;
+                if (apuntador == PAQUETES_COMPLETOS)
+                    btmp = Arrays.copyOfRange(file, apuntador * tam, apuntador * tam + n_sobrantes);
+                else
+                    btmp = Arrays.copyOfRange(file, apuntador * tam, apuntador * tam + tam);
+
+                outStream.writeInt(apuntador);              // Número de paquete
+                outStream.writeInt(TOTAL_PAQUETES);         // Total de paquetes
+                outStream.writeInt(fileNameBytes.length);   // Tamaño del nombre del archivo
+                outStream.write(fileNameBytes);             // Nombre del archivo
+                outStream.writeInt(btmp.length);            // Tamaño de los datos
+                outStream.write(btmp);                      // Datos
+                outStream.flush();
+
+                byte[] bufferOut = byteOut.toByteArray();
+                buffer.clear();
+                buffer.put(bufferOut);
+                buffer.flip();
+                channel.send(buffer, serverAddress); // Enviar paquete
+                byteOut.reset();
+                apuntador++;
+            }
+
+            try {
+                // Recibir el ACK
+                buffer.clear();
+                channel.configureBlocking(false);
+                long startTime = System.currentTimeMillis();
+                boolean ackReceived = false;
+                while (!ackReceived && (System.currentTimeMillis() - startTime) < TIEMPO_ESPERA_ENVIAR) {
+                    buffer.clear();
+                    SocketAddress sender = channel.receive(buffer);
+                    if (sender != null) {
+                        buffer.flip();
+                        byteIn = new ByteArrayInputStream(buffer.array(), 0, buffer.limit());
+                        inStream = new DataInputStream(byteIn);
+                        int n = inStream.readInt(); // Leer número de paquete ACK
+                        System.out.println("\033[95mACK: \033[0m" + n);
+                        System.out.flush();
+                        if (n >= start) {
+                            start = n + 1; // Mover el inicio de la ventana
+                            ackReceived = true;
+                        }
+                    }
+                }
+
+                if (!ackReceived) {
+                    throw new SocketTimeoutException();
+                }
+            } catch (SocketTimeoutException e) {
+                System.out.println("\033[31mTIMEOUT: retransmitiendo desde el paquete " + start + "\033[0m");
+                System.out.flush();
+                apuntador = start; // Empezar a retransmitir los paquetes desde el inicio de la ventana
+            }
+        }
+        } catch (Exception e) {
+            
         }
     }
 }
