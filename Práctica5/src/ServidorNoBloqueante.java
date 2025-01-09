@@ -166,6 +166,11 @@ public class ServidorNoBloqueante {
                                     System.out.flush();
                                     eliminarArchivo(inStream, cliente);
                                     break;
+                                case -6:
+                                    System.out.println("\033[92mRecibido código para bajar archivo\033[0m");
+                                    System.out.flush();
+                                    //bajarArchivo(inStream, cliente);
+                                    break;
                                 case -7:
                                     System.out.println("\033[92mRecibido código para crear renombrar archivo/directorio\033[0m");
                                     System.out.flush();

@@ -125,7 +125,7 @@ class WindowNoBloqueante extends JFrame {
 
         btnSubir.addActionListener(new ActionListener() { 
             public void actionPerformed(ActionEvent e) { 
-                //ClienteNoBloqueante.subirArchivo(socket, direccion);
+                ClienteNoBloqueante.subirArchivo(channel);
             } 
         });
 
