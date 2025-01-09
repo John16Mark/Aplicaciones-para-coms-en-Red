@@ -136,6 +136,13 @@ class Interfaz extends JFrame {
                 textAreaChat.append("Mensaje privado a " + usuarioSeleccionado + ": " + mensaje + "\n");
             }
         });
+        /* ---------------------------------------------------------------------------------------
+          *                              ENVIAR ARCHIVO
+          * --------------------------------------------------------------------------------------- */
+        btnEnviarArchivo.addActionListener(e -> {
+            Client.enviarArchivo(Client.nombreUsuario, socket);
+            // textAreaChat.append("Se ha enviado un archivo de parte de " + Client.nombreUsuario + "\n");
+        });
 
         setVisible(true);
     }
