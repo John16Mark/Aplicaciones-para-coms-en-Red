@@ -3,6 +3,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.DatagramPacket;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
@@ -12,17 +13,20 @@ import java.nio.channels.Selector;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class ServidorNoBloqueante {
 
     final public static int TAM_VENTANA = 5;
-    final public static int TAM_PAQUETE = 10000;
+    final public static int TAM_PAQUETE = 40000;
     final public static int TAM_BUFFER = 65535;
     final static int PORT = 5555;
-    final static int TIEMPO_ESPERA_ENVIAR = 500;
+    final static int TIEMPO_ESPERA_ENVIAR = 200;
     final static int TIEMPO_ESPERA_RECIBIR = 2000;
 
     static String dir_server;
@@ -34,8 +38,7 @@ public class ServidorNoBloqueante {
         ESPERANDO_SYN,
         ESPERANDO_ACK,
         CONEXION_ESTABLECIDA,
-        CREAR_DIRECTORIO,
-        ELIMINAR_ARCHIVO,
+        FIN_RECEPCION,
     }
 
     public static void main(String[] args) {
@@ -142,7 +145,7 @@ public class ServidorNoBloqueante {
                                     System.out.println("\033[31mPaquete recibido de cliente desconocido\033[0m");
                                     continue;
                                 }
-                                System.out.println("\033[94mPaquete recibido en estado de conexión establecida.\033[0m");
+                                //System.out.println("\033[94mPaquete recibido en estado de conexión establecida.\033[0m");
 
                                 int instruccion = inStream.readInt();
                                 switch (instruccion) {
@@ -169,25 +172,102 @@ public class ServidorNoBloqueante {
                                 case -6:
                                     System.out.println("\033[92mRecibido código para bajar archivo\033[0m");
                                     System.out.flush();
-                                    //bajarArchivo(inStream, cliente);
+                                    bajarArchivo(inStream, cliente);
                                     break;
                                 case -7:
                                     System.out.println("\033[92mRecibido código para crear renombrar archivo/directorio\033[0m");
                                     System.out.flush();
                                     renombrarArchivo(inStream, cliente);
                                     break;
+                                case -9:
+                                    System.out.println("\033[92mRecibido código de mandar directorio\033[0m");
+                                    System.out.flush();
+                                    enviarInfoDirectorio(dir_actual, cliente);
+                                case -10:
+                                    System.out.println("\033[92mRecibido código de fin de archivo\033[0m");
+                                    System.out.flush();
+                                    enviarInfoDirectorio(dir_actual, cliente);;
+                                    expectedPacket = 0;
+                                    totalPackets = -1;
+                                    nombreArchivo = "";
                                 default:
                                     break;
                                 }
-                                
-                                break;
-                            case CREAR_DIRECTORIO:
-                                if (!cliente.equals(clienteActual)) {
-                                    System.out.println("\033[31mPaquete recibido de cliente desconocido\033[0m");
-                                    continue;
+                                // Si recibo un código de instrucción mayor o igual a 0
+                                // entonces significa que el Servidor va a recibir un archivo
+                                if(instruccion >= 0) {
+                                    int n = instruccion;
+                                    if(totalPackets == -1)
+                                        totalPackets = inStream.readInt();
+                                    else inStream.readInt();
+                                    int tamFileName = inStream.readInt();       // Tamaño de la ruta del archivo
+                                    byte[] bufferIn = new byte[tamFileName];    // Ruta del archivo en bytes
+                                    inStream.read(bufferIn);
+                                    if(nombreArchivo == "")
+                                    nombreArchivo = new String(bufferIn);       // Cadena de los bytes
+                                    int tam = inStream.readInt();               // Tamaño de los datos
+                                    bufferIn = new byte[tam];
+                                    inStream.read(bufferIn);                    // datos en bytes
+
+                                    Path path = dir_actual.resolve(nombreArchivo);
+                                    if (expectedPacket == 0) {
+                                        Files.write(path, new byte[0]);
+                                    }
+
+                                    // Abrir el archivo, escribir los datos y cerrarlo inmediatamente
+                                    try {
+                                        byteOut = new ByteArrayOutputStream();
+                                        outStream = new DataOutputStream(byteOut);
+                                        // Está en el try para que no mande el acuse si es que no se escribió bien el archivo
+                                        if(expectedPacket == n) {
+                                            Files.write(path, bufferIn, StandardOpenOption.APPEND);
+                                            
+                                            outStream.writeInt(n);
+                                            outStream.flush();
+
+                                            sendBuffer = ByteBuffer.wrap(byteOut.toByteArray());
+                                            serverChannel.send(sendBuffer, cliente);
+                                            System.out.println("\033[93mEnviando ACK:" + n + "\033[0m");
+                                            byteOut.reset();
+
+                                            expectedPacket++;
+                                        // Si el paquete que se espera es mayor al que llega,
+                                        // mandar ACK para empezar a recibir paquetes más adelante
+                                        } else if(expectedPacket > n) {
+                                            outStream.writeInt(expectedPacket-1);
+                                            outStream.flush();
+
+                                            sendBuffer = ByteBuffer.wrap(byteOut.toByteArray());
+                                            serverChannel.send(sendBuffer, cliente);
+                                            System.out.println("\033[93mEnviando ACK:" + (expectedPacket-1) + "\033[0m");
+                                            byteOut.reset();
+                                        }
+                                    } catch (IOException e) {
+                                        System.err.println("Error al escribir en el archivo: " + e.getMessage());
+                                        System.err.flush();
+                                    }
+
+                                    System.out.println("\033[92mPaquete recibido. \033[95m#paq: \033[0m"+ n+ "\t\033[95mTotalPaq: \033[0m"+totalPackets+"\t\033[95mFileName: \033[0m"+nombreArchivo+"\t\033[95mtam: \033[0m"+tam+" bytes");
+                                    System.out.flush();
+                                    inStream.close();
+                                    if(expectedPacket == totalPackets) {
+                                        System.out.println("\033[94mRecibo exitoso del archivo "+nombreArchivo+".\033[0m");
+                                        System.out.flush();
+
+                                        // Seguiremos mandando acuses del número total de paquetes
+                                        // Hasta recibir el código de fin de archivo (-10)
+                                        byteOut = new ByteArrayOutputStream();
+                                        outStream = new DataOutputStream(byteOut);
+                                        outStream.writeInt(totalPackets);
+                                        outStream.flush();
+
+                                        sendBuffer = ByteBuffer.wrap(byteOut.toByteArray());
+                                        serverChannel.send(sendBuffer, cliente);
+                                        System.out.println("\033[93mEnviando ACK:" + totalPackets + "\033[0m");
+                                        byteOut.reset();
+                                    }
                                 }
                                 
-
                                 break;
                             default:
                                 System.out.println("\033[31mEstado desconocido\033[0m");
@@ -331,6 +411,85 @@ public class ServidorNoBloqueante {
     }
 
     // ------------------------------------------------------------------------
+    //                              BAJAR ARCHIVO
+    // ------------------------------------------------------------------------
+    private static void bajarArchivo(DataInputStream inStream, SocketAddress cliente) throws Exception {
+        System.out.println("\n\033[95m -- BAJAR ARCHIVO --\033[0m");
+
+        int tam = inStream.readInt();
+        byte[] bufferNombre = new byte[tam];
+        inStream.read(bufferNombre);
+        String nombre = new String(bufferNombre);
+
+        System.out.println("\033[94mContenido recibido:\033[0m");
+        System.out.println("\033[93mLongitud del nombre: \033[0m"+tam);
+        System.out.println("\033[93mNombre del archivo: \033[0m"+nombre);
+
+        Path filePath = dir_actual.resolve(nombre);
+        if (!Files.exists(filePath)) {
+            System.out.println("\033[91mArchivo no encontrado: \033[0m" + nombre);
+            return;
+        }
+
+        byte[] fileData = Files.readAllBytes(filePath);
+        int totalPackets = (int) Math.ceil((double) fileData.length / TAM_PAQUETE);
+        int start = 0;
+
+        ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+        DataOutputStream outStream = new DataOutputStream(byteOut);
+
+        while (start < totalPackets) {
+            for (int i = start; i < start + TAM_VENTANA && i < totalPackets; i++) {
+                int startByte = i * TAM_PAQUETE;
+                int endByte = Math.min(startByte + TAM_PAQUETE, fileData.length);
+                byte[] packetData = Arrays.copyOfRange(fileData, startByte, endByte);
+
+                outStream.writeInt(i); // Número del paquete
+                outStream.writeInt(totalPackets); // Total de paquetes
+                outStream.writeInt(nombre.getBytes().length); // Tamaño del nombre
+                outStream.write(nombre.getBytes()); // Nombre del archivo
+                outStream.writeInt(packetData.length); // Tamaño de los datos
+                outStream.write(packetData); // Datos
+                outStream.flush();
+
+                ByteBuffer sendBuffer = ByteBuffer.wrap(byteOut.toByteArray());
+                serverChannel.send(sendBuffer, cliente);
+                byteOut.reset();
+
+                //System.out.println("\033[93mPaquete enviado: \033[0m" + i);
+            }
+
+            // Esperar ACKs
+            ByteBuffer receiveBuffer = ByteBuffer.allocate(TAM_BUFFER);
+            boolean ackReceived = false;
+            long startTime = System.currentTimeMillis();
+
+            while (!ackReceived && (System.currentTimeMillis() - startTime) < TIEMPO_ESPERA_ENVIAR) {
+                receiveBuffer.clear();
+                SocketAddress sender = serverChannel.receive(receiveBuffer);
+                if (sender != null && sender.equals(cliente)) {
+                    receiveBuffer.flip();
+                    DataInputStream ackStream = new DataInputStream(
+                            new ByteArrayInputStream(receiveBuffer.array(), 0, receiveBuffer.limit()));
+                    int ack = ackStream.readInt();
+                    System.out.println("\033[92mACK recibido: \033[0m" + ack);
+
+                    if (ack >= start) {
+                        start = ack + 1; // Mover ventana
+                        ackReceived = true;
+                    }
+                }
+            }
+
+            if (!ackReceived) {
+                System.out.println("\033[91mNo se recibió ACK. Reintentando ventana desde: \033[0m" + start);
+            }
+        }
+
+        System.out.println("\033[94mArchivo enviado exitosamente: \033[0m" + nombre);
+    }
+    
+    // ------------------------------------------------------------------------
     //                             RENOMBRAR ARCHIVO
     // ------------------------------------------------------------------------
     private static void renombrarArchivo(DataInputStream inStream, SocketAddress cliente) throws Exception {
@@ -365,11 +524,15 @@ public class ServidorNoBloqueante {
         enviarInfoDirectorio(dir_actual, cliente);
     }
                     
-    private static void enviarInfoDirectorio(Path p, SocketAddress direccion) {
+    private static void enviarInfoDirectorio(Path p, SocketAddress direccion) throws InterruptedException {
         try {
+            //TimeUnit.MILLISECONDS.sleep(500);
             // Construir el mensaje
             ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             DataOutputStream outStream = new DataOutputStream(byteOut);
+
+            // Encabezado del mensaje
+            outStream.writeInt(1); // Tipo de mensaje: DIRECTORIO
 
             Path basePath = Paths.get(dir_server).normalize();
             Path hiddenPath = p.normalize();
