@@ -8,7 +8,12 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.Scanner;
+import javax.swing.JFileChooser;
 import com.google.gson.Gson;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 
 public class Cliente extends Thread{
     public static String direccionMulticast = "230.1.1.1";
@@ -17,6 +22,17 @@ public class Cliente extends Thread{
     
     private String nombreUsuario;
     private int puertoUnicast;
+    private int puertoArchivos;
+    private static InetSocketAddress puertoServidor;
+
+    final public static int TAM_VENTANA = 5;
+    final public static int TAM_PAQUETE = 10000;
+    final public static int TAM_BUFFER = 65535;
+    final static int TIEMPO_ESPERA_ENVIAR = 500;
+    final static int TIEMPO_ESPERA_RECIBIR = 2000;
+
+    static String nombreArchivo = "";
+    static String rutaArchivo = "";
      
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
@@ -40,17 +56,20 @@ public class Cliente extends Thread{
         }
         
         puertoUnicast = 5000 + new Random().nextInt(1000);
+        puertoArchivos = 6000 + new Random().nextInt(1000);
 
         try (MulticastSocket socketMulticast = new MulticastSocket(puertoMulticast);
-            DatagramSocket socketUnicast = new DatagramSocket(puertoUnicast)) {
+            DatagramSocket socketUnicast = new DatagramSocket(puertoUnicast);
+            DatagramSocket socketArchivos = new DatagramSocket(puertoArchivos)) {
             // Unirse al servidor multicast
             socketMulticast.joinGroup(grupo);
     
             System.out.println("\033[92mCliente unido al grupo " + grupo + " en el puerto " + puertoMulticast + ".\033[0m");
             System.out.println("\033[92mCliente con puerto único " + puertoUnicast + ".\033[0m");
+            System.out.println("\033[92mCliente con puerto para enviar archivos " + puertoArchivos + ".\033[0m");
             
             // Mensaje de inicio de sesión, se manda el puerto unicast del usuario
-            Mensaje mensajeInicio = new Mensaje("inicioSesion", nombreUsuario, Integer.toString(puertoUnicast), null);
+            Mensaje mensajeInicio = new Mensaje("inicioSesion", nombreUsuario, Integer.toString(puertoUnicast), Integer.toString(puertoArchivos));
             String jsonInicio = mensajeInicio.toJson();
             DatagramPacket paqueteInicio = new DatagramPacket(jsonInicio.getBytes(StandardCharsets.UTF_8), jsonInicio.length(), grupo, puertoMulticast);
             socketMulticast.send(paqueteInicio);
@@ -70,6 +89,9 @@ public class Cliente extends Thread{
                                 case "usuariosActivosInicio":
                                     System.out.println(mensaje.getUsuario() + "\033[92m se unió al chat\033[0m");
                                     System.out.println("\033[92mLista de usuarios activos: \033[0m"+ mensaje.getContenido());
+                                    int puertoS = Integer.parseInt(mensaje.getDestinatario());
+                                    puertoServidor = new InetSocketAddress(recv.getAddress(), puertoS);
+                                    System.out.print("\033[95mPuerto del servidor: \033[0m" + puertoServidor.getPort() + " \033[95mcon dirección\033[0m " + puertoServidor.getAddress());
                                     break;
                                 
                                 case "usuariosActivosCierre":
@@ -142,6 +164,14 @@ public class Cliente extends Thread{
                 }
             });
 
+            // Thread enviarArchivos = new Thread(() -> {
+            //     for(;;) {
+            //         try {
+
+            //         }
+            //     }
+            // });
+
             recibirMensajesMulticast.start();
             recibirMensajesUnicast.start();
 
@@ -154,7 +184,6 @@ public class Cliente extends Thread{
                 System.out.println("1. Enviar mensaje grupal");
                 System.out.println("2. Enviar mensaje privado");
                 System.out.println("3. Enviar un archivo");
-                System.out.println("4. Ver archivos grupales");
                 System.out.println("5. Salir del servidor");
                 System.out.println("Seleccione una opcion: \033[0m");
                 String opcion = scanner.nextLine().trim();
@@ -192,61 +221,14 @@ public class Cliente extends Thread{
                         obtenerDireccionDestinatario(mensajePrivado, grupo, socketUnicast, socketMulticast);
                         break;
                     /* ---------------------------------------------------------------------------------------
-                     *                                  ENVIAR ARCHIVO -- cambiar
+                     *                                    ENVIAR ARCHIVO
                      * --------------------------------------------------------------------------------------- */
-                    case "3":  
-                        System.out.println("Selecciona el archivo que deseas enviar:");
-                        String rutaArchivo = scanner.nextLine().trim();
-                        File archivo = new File(rutaArchivo);
-
-                        if (archivo.exists()) {
-                            try (FileInputStream fis = new FileInputStream(archivo)) {
-                                byte[] fileBytes = fis.readAllBytes();
-                                int fragmentSize = 1024;
-                                int totalFragments = (int) Math.ceil((double) fileBytes.length / fragmentSize);
-
-                                Mensaje mensajeArchivo = new Mensaje("archivo", nombreUsuario, archivo.getName(), String.valueOf(totalFragments));
-                                String jsonArchivo = mensajeArchivo.toJson();
-                                DatagramPacket paqueteMetadatos = new DatagramPacket(jsonArchivo.getBytes(StandardCharsets.UTF_8), jsonArchivo.length(), grupo, puertoMulticast);
-                                socketMulticast.send(paqueteMetadatos);
-
-                                for (int i = 0; i < totalFragments; i++) {
-                                    int start = i * fragmentSize;
-                                    int end = Math.min(fileBytes.length, start + fragmentSize);
-                                    byte[] fragment = Arrays.copyOfRange(fileBytes, start, end);
-
-                                    DatagramPacket paqueteFragmento = new DatagramPacket(fragment, fragment.length, grupo, puertoMulticast);
-                                    socketMulticast.send(paqueteFragmento);
-                                    System.out.println("Enviando fragmento " + (i + 1) + " de " + totalFragments);
-                                }
-
-                                System.out.println("Archivo enviado correctamente");
-
-                            } catch (IOException e) {
-                                System.out.println("Error al leer o enviar el archivo: " + e.getMessage());
-                            }
-                        } else {
-                            System.out.println("El archivo no existe");
-                        }
-                        break;
-                    /* ---------------------------------------------------------------------------------------
-                     *                            VER Y DESCARGAR ARCHIVOS RECIBIDOS -- cambiar
-                     * --------------------------------------------------------------------------------------- */
-                    case "4":
-                        File dir = new File("recibidos");
-
-                        if (dir.exists() && dir.isDirectory()) {
-                            File[] archivos = dir.listFiles();
-
-                            if (archivos != null && archivos.length > 0) {
-                                System.out.println("Archivos disponibles para descargar:");
-                                for (File archivoDisponible : archivos) {
-                                    System.out.println(archivoDisponible.getName());
-                                }
-                            }else {
-                                System.out.println("No hay archivos disponibles");
-                            }
-                        }
+                    case "3":
+                        Mensaje mensajeArchivo = new Mensaje("solicitudEnviarArchivo", nombreUsuario, null, null);
+                        String jsonArchivo = mensajeArchivo.toJson();
+                        DatagramPacket paqueteMetadatos = new DatagramPacket(jsonArchivo.getBytes(StandardCharsets.UTF_8), jsonArchivo.length(), grupo, puertoMulticast);
+                        socketMulticast.send(paqueteMetadatos);
+                        enviarArchivo(socketArchivos);
                         break;
                     /* ---------------------------------------------------------------------------------------
                      *                               SALIR DEL CHAT MULTICAST
@@ -269,6 +251,7 @@ public class Cliente extends Thread{
             socketMulticast.leaveGroup(grupo);
             socketMulticast.close();
             socketUnicast.close();
+            socketArchivos.close();
 
             scanner.close();
             System.out.println("\033[92mConexión cerrada\033[0m");
@@ -276,7 +259,108 @@ public class Cliente extends Thread{
             e.printStackTrace();
         }        
     }
+     /* ------------------------------------------------------------------------------------------------------
+     *                       
+     *                                              ENVIAR ARCHIVO
+     * 
+     * ------------------------------------------------------------------------------------------------------  */
+    static void enviarArchivo(DatagramSocket socketArchivos) {
+        try {
+            // Clases para enviar información
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(byteOut);
 
+            // Clases para recibir inormación
+            ByteArrayInputStream byteIn;
+            DataInputStream inStream;
+
+            DatagramPacket packet;
+
+            Scanner ruta = new Scanner(System.in);
+            System.out.println("Ingresa la ruta del archivo: ");
+            String rutaArchivo = ruta.nextLine();
+
+            // Crear el objeto File
+            File archivo = new File(rutaArchivo);
+
+            // Verificar si el archivo existe
+            if (!archivo.exists()) {
+                System.out.println("El archivo no existe");
+                return;
+            }
+            ruta.close();
+            nombreArchivo = archivo.getName();
+            // JFileChooser jfc = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
+            // int returnValue = jfc.showOpenDialog(null);
+            // if (returnValue == JFileChooser.APPROVE_OPTION) {
+            //     File selectedFile = jfc.getSelectedFile();
+            //     String rutaArchivo = selectedFile.getAbsolutePath();
+            //     nombreArchivo = selectedFile.getName();
+            // } else
+            //     return;
+            
+            byte[] file = Files.readAllBytes(archivo.toPath());
+            byte[] fileNameBytes = nombreArchivo.getBytes();
+
+            int tam = TAM_PAQUETE;
+            int PAQUETES_COMPLETOS = (int) file.length/TAM_PAQUETE;
+            int TOTAL_PAQUETES = (int) file.length%TAM_PAQUETE == 0 ? PAQUETES_COMPLETOS : PAQUETES_COMPLETOS+1;
+            int n_sobrantes = (int) file.length % TAM_PAQUETE;
+
+            int start = 0;      // Apuntador al inicio de la ventana
+            int apuntador = 0;  // Apuntador al paquete que se va a mandar
+            while (start < TOTAL_PAQUETES) {
+                // Enviar paquetes en la ventana
+                while (apuntador < start + TAM_VENTANA && apuntador < TOTAL_PAQUETES) {
+                    byte[] btmp;
+                    // Si es el paquete final (y es más pequeño que el tamaño de paquete)
+                    if(apuntador == PAQUETES_COMPLETOS)
+                        btmp = Arrays.copyOfRange(file, apuntador*tam, apuntador*tam + n_sobrantes);
+                    else
+                        btmp = Arrays.copyOfRange(file, apuntador*tam, apuntador*tam + tam);
+                    outStream.writeInt(apuntador);              // Número de paquete
+                    outStream.writeInt(TOTAL_PAQUETES);         // Total de paquetes
+                    outStream.writeInt(fileNameBytes.length);   // Tamaño del nombre del archivo
+                    outStream.write(fileNameBytes);             // Nombre del archivo
+                    outStream.writeInt(btmp.length);            // Tamaño de los datos
+                    outStream.write(btmp);                      // Datos
+                    outStream.flush();
+
+                    // Enviar paquete
+                    byte[] bufferOut = byteOut.toByteArray();
+                    packet = new DatagramPacket(bufferOut, bufferOut.length, puertoServidor.getAddress(), puertoServidor.getPort());
+                    socketArchivos.send(packet);
+                    byteOut.reset();
+                        apuntador++;
+                }
+
+                try {
+                    // Recibir el ACK
+                    socketArchivos.setSoTimeout(TIEMPO_ESPERA_ENVIAR);
+                    byte[] buffer = new byte[TAM_BUFFER];
+                    packet = new DatagramPacket(buffer, buffer.length);
+                    socketArchivos.receive(packet);
+                    byteIn = new ByteArrayInputStream(packet.getData());
+                    inStream = new DataInputStream(byteIn);
+                    int n = inStream.readInt();
+                    System.out.println("\033[95mACK: \033[0m"+n);
+                    System.out.flush();
+                    if (n >= start)
+                        start = n + 1; // Mover el inicio de la ventana
+
+                } catch (SocketTimeoutException e) {
+                    System.out.println("\033[31mTIMEOUT: retransmitiendo desde el paquete " + start+"\033[0m");
+                    System.out.flush();
+                    apuntador = start; // Empezar a transmitir los paquetes desde el inicio de la ventana
+                }
+            }
+            System.out.println("\033[94mEnvío exitoso del archivo "+nombreArchivo+".\033[0m");
+            System.out.flush();
+        }catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
     /* ------------------------------------------------------------------------------------------------------
      *                       
      *                                              VALIDAR JSON

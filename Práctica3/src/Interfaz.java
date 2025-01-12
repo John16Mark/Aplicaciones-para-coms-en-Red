@@ -1,9 +1,13 @@
 import javax.swing.*;
-import javax.swing.border.EmptyBorder;
-
 import java.awt.*;
+import javax.swing.border.EmptyBorder;
+import java.nio.file.Files;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.io.File;
 
 class Interfaz extends JFrame {
     private JPanel contentPane;
@@ -15,9 +19,10 @@ class Interfaz extends JFrame {
     private JButton btnMensajePrivado;
     private JButton btnEnviarArchivo;
     private JButton btnSalir;
+    private JButton btnVerArchivos;
 
-    final static int WIDTH = 1000;
-    final static int HEIGHT = 600;
+    final static int WIDTH = 500;
+    final static int HEIGHT = 300;
 
     private static JLabel lblInicio;
     private static JPanel panelInicio;
@@ -48,22 +53,35 @@ class Interfaz extends JFrame {
 		panelTitulo = new JPanel();
 		panelTituloBotones.add(panelTitulo, BorderLayout.NORTH);
 		titulo = new JLabel("Sala de chat");
-        titulo.setFont(new java.awt.Font("Franklin Gothic Demi Cond", 0, 48)); // NOI18N
+        titulo.setFont(new java.awt.Font("Franklin Gothic Demi Cond", 0, 48));
 		panelTitulo.add(titulo);
 
-        // Botones izquierda
-		panelBtnIzquierda = new JPanel();
-		panelTituloBotones.add(panelBtnIzquierda, BorderLayout.WEST);
-		btnMensajePrivado = new JButton("Enviar mensaje privado");
-		panelBtnIzquierda.add(btnMensajePrivado);
-		btnEnviarArchivo = new JButton("Enviar archivo");
-		panelBtnIzquierda.add(btnEnviarArchivo);
+        // Botones izquierda 
+        panelBtnIzquierda = new JPanel();
+        panelBtnIzquierda.setLayout(new BoxLayout(panelBtnIzquierda, BoxLayout.Y_AXIS)); // Disposición vertical
+        panelTituloBotones.add(panelBtnIzquierda, BorderLayout.WEST);
+
+        // Panel para los tres primeros botones
+        JPanel panelFilaSuperior = new JPanel();
+        panelFilaSuperior.setLayout(new FlowLayout(FlowLayout.LEFT)); // Alineación a la izquierda
+        btnMensajePrivado = new JButton("Enviar mensaje privado");
+        panelFilaSuperior.add(btnMensajePrivado);
+        btnEnviarArchivo = new JButton("Enviar archivo");
+        panelFilaSuperior.add(btnEnviarArchivo);
         btnSalir = new JButton("Salir de la sala");
-		panelBtnIzquierda.add(btnSalir);
+        panelFilaSuperior.add(btnSalir);
+        panelBtnIzquierda.add(panelFilaSuperior);
+
+        // Panel para el botón "Ver archivos"
+        JPanel panelFilaInferior = new JPanel();
+        panelFilaInferior.setLayout(new FlowLayout(FlowLayout.LEFT)); // Alineación a la izquierda
+        btnVerArchivos = new JButton("Ver archivos");
+        panelFilaInferior.add(btnVerArchivos);
+        panelBtnIzquierda.add(panelFilaInferior);
 
         // Panel principal
         JSplitPane splitPane = new JSplitPane();
-        splitPane.setDividerLocation(600);
+        splitPane.setDividerLocation(300);
         contentPane.add(splitPane, BorderLayout.CENTER);
 
         // Área para mostrar mensajes 
@@ -143,14 +161,20 @@ class Interfaz extends JFrame {
           *                              ENVIAR ARCHIVO
           * --------------------------------------------------------------------------------------- */
         btnEnviarArchivo.addActionListener(e -> {
-            Client.enviarArchivo(Client.nombreUsuario, socket);
-            // textAreaChat.append("Se ha enviado un archivo de parte de " + Client.nombreUsuario + "\n");
+            JFileChooser jfc = new JFileChooser();
+            jfc.setFileSelectionMode(JFileChooser.FILES_ONLY);
+            int returnValue = jfc.showOpenDialog(this);
+            if (returnValue == JFileChooser.APPROVE_OPTION) {
+                File selectedFile = jfc.getSelectedFile();
+                Client.enviarSolicitudArchivo(Client.nombreUsuario, selectedFile, socket);
+            } else {
+                JOptionPane.showMessageDialog(this, "No se seleccionó ningún archivo.", "Advertencia", JOptionPane.WARNING_MESSAGE);
+            }
         });
         /* ---------------------------------------------------------------------------------------
          *                              ENVIAR ARCHIVO
          * --------------------------------------------------------------------------------------- */
         btnEmoji.addActionListener(e -> {
-            // Crear un cuadro de diálogo para seleccionar emojis
             String[] emojis = {"😀", "😂", "❤️", "👍", "😢", "🔥", "🎉", "💡"};
             String emojiSeleccionado = (String) JOptionPane.showInputDialog(
                 this,
@@ -161,11 +185,35 @@ class Interfaz extends JFrame {
                 emojis,
                 emojis[0]
             );
-
-            // Agregar el emoji seleccionado al mensaje
             if (emojiSeleccionado != null) {
                 textFieldMensaje.setText(textFieldMensaje.getText() + emojiSeleccionado);
             }
+        });
+        /* ---------------------------------------------------------------------------------------
+         *                             VER ARCHIVOS DEL USUARIO
+         * --------------------------------------------------------------------------------------- */
+        btnVerArchivos.addActionListener(e -> {
+            String rutaBase = "ArchivosUsuarios";
+            File carpetaUsuario = new File(rutaBase, nombreUsuario);
+
+            if (!carpetaUsuario.exists() || !carpetaUsuario.isDirectory()) {
+                JOptionPane.showMessageDialog(this, "No tienes archivos guardados " + nombreUsuario, "Carpeta no encontrada", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+
+            File[] archivos = carpetaUsuario.listFiles();
+            if (archivos == null || archivos.length == 0) {
+                JOptionPane.showMessageDialog(this, "No hay archivos disponibles para mostrar", "Carpeta vacía", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+
+            StringBuilder listaArchivos = new StringBuilder("Archivos disponibles:\n");
+            for (File archivo : archivos) {
+                listaArchivos.append(archivo.getName()).append("\n");
+            }
+
+            JOptionPane.showMessageDialog(this, listaArchivos.toString(), "Archivos del usuario: " + nombreUsuario, JOptionPane.INFORMATION_MESSAGE);
+
         });
 
         setVisible(true);
